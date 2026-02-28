@@ -1,6 +1,6 @@
 <template>
   <van-config-provider class="chat-app">
-    <!-- 导航栏：不再使用 fixed，作为 flex 子项自然固定在顶部，并去掉边框 -->
+    <!-- 导航栏：背景全宽，内容居中 -->
     <van-nav-bar
       title="💰 理财小助手"
       left-text="返回"
@@ -17,14 +17,14 @@
       </template>
     </van-nav-bar>
 
-    <!-- 消息列表区域：flex:1 自动撑开，可滚动 -->
+    <!-- 消息列表区域（可滚动） -->
     <div class="chat-main" ref="messagesContainer">
       <van-cell v-if="chat.messages.length === 0" class="welcome-cell">
         <span class="welcome-text">👋 你好！我是你的理财助手，有什么可以帮你的吗？</span>
       </van-cell>
 
       <div v-for="message in chat.messages" :key="message.id" class="message-wrapper">
-        <!-- 用户消息：右对齐 -->
+        <!-- 用户消息（不渲染 Markdown） -->
         <div v-if="message.role === 'user'" class="message-row user-row">
           <van-cell class="message-bubble user-bubble">
             <div v-for="part in message.parts" :key="part.type">
@@ -34,12 +34,12 @@
           <van-icon name="contact" size="24" class="avatar user-avatar" />
         </div>
 
-        <!-- AI 消息：左对齐 -->
+        <!-- AI 消息（渲染 Markdown） -->
         <div v-else class="message-row assistant-row">
           <van-icon name="service-o" size="24" class="avatar assistant-avatar" />
           <van-cell class="message-bubble assistant-bubble">
             <div v-for="part in message.parts" :key="part.type">
-              <div v-if="part.type === 'text'" class="message-text">{{ part.text }}</div>
+              <div v-if="part.type === 'text'" class="markdown-body" v-html="renderMarkdown(part.text)"></div>
             </div>
           </van-cell>
         </div>
@@ -56,7 +56,7 @@
       <div ref="scrollAnchor"></div>
     </div>
 
-    <!-- 底部输入区：作为 flex 子项自然固定在底部 -->
+    <!-- 底部输入区 -->
     <div class="input-area">
       <van-field
         v-model="input"
@@ -88,6 +88,21 @@
 import { ref, nextTick, watch } from 'vue'
 import { Chat } from '@ai-sdk/vue'
 import { showToast } from 'vant'
+import { marked } from 'marked'
+import hljs from 'highlight.js'
+import 'highlight.js/styles/github.css' // 代码高亮主题
+
+// 配置 marked 使用 highlight.js 高亮代码
+marked.setOptions({
+  highlight: (code, lang) => {
+    if (lang && hljs.getLanguage(lang)) {
+      return hljs.highlight(code, { language: lang }).value
+    }
+    return hljs.highlightAuto(code).value
+  },
+  breaks: true,      // 将换行符转换为 <br>
+  gfm: true          // 使用 GitHub 风格 Markdown
+})
 
 const chat = new Chat({})
 const input = ref('')
@@ -106,6 +121,11 @@ const handleSubmit = (e) => {
   }
 }
 
+// Markdown 渲染函数（返回 HTML 字符串）
+const renderMarkdown = (text) => {
+  return marked.parse(text)
+}
+
 const scrollToBottom = () => {
   nextTick(() => {
     if (scrollAnchor.value) {
@@ -122,7 +142,10 @@ watch(
 </script>
 
 <style scoped>
-/* 整体 flex 列布局，占满视口 */
+/* 引入代码高亮样式（已在 script 中引入，此处为备用） */
+@import 'highlight.js/styles/github.css';
+
+/* 整体 flex 列布局 */
 .chat-app {
   height: 100vh;
   display: flex;
@@ -130,25 +153,27 @@ watch(
   background-color: #ffffff;
 }
 
-/* 导航栏自定义：去掉默认下边框 */
+/* 导航栏自定义：去除下边框，内部内容与消息区域同宽 */
 .custom-nav {
-  /* 移除下边框 */
   border-bottom: none !important;
+  width: 100%;
 }
-/* 若 Vant 内部有伪元素边框，也一并去除 */
-::v-deep(.van-nav-bar) {
-  border-bottom: none !important;
-  box-shadow: none !important;
+::v-deep(.custom-nav .van-nav-bar__content) {
+  max-width: 800px;
+  margin: 0 auto;
+  width: 100%;
+  padding-left: 16px;
+  padding-right: 16px;
 }
 
-/* 消息列表主区域：flex:1 自动撑开，滚动 */
+/* 消息列表主区域 */
 .chat-main {
   flex: 1;
   overflow-y: auto;
-  padding: 12px 12px 20px 12px;
+  padding: 12px 16px 20px 16px;
   background-color: #ffffff;
   -webkit-overflow-scrolling: touch;
-  max-width: 100%;
+  max-width: 800px;
   margin: 0 auto;
   width: 100%;
 }
@@ -213,24 +238,25 @@ watch(
   line-height: 1.5;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.03);
   transition: all 0.2s;
+  text-align: left !important;
 }
 .message-text {
   white-space: pre-wrap;
-  text-align: left; /* 明确左对齐 */
+  text-align: left !important;
 }
 
-/* 用户气泡：纯色淡蓝色 */
+/* 用户气泡 */
 .user-bubble {
   background-color: #e6f7ff !important;
-  color: #282828 !important;
+  color: #333 !important;
   border-bottom-right-radius: 4px !important;
   border: none;
 }
 
-/* AI 气泡：白色带边框 */
+/* AI 气泡 */
 .assistant-bubble {
   background-color: white !important;
-  color: #282828 !important;
+  color: #333 !important;
   border: 1px solid #ebedf0;
   border-bottom-left-radius: 4px !important;
 }
@@ -243,53 +269,95 @@ watch(
   padding: 12px 16px !important;
 }
 
-/* 底部输入区：自然作为 flex 子项 */
+/* 底部输入区 */
 .input-area {
   background-color: white;
-  border: 1px solid #ebedf0;
-  border-radius: 8px;
-  padding: 8px 16px 8px 16px;
+  border-top: 1px solid #ebedf0;
+  padding: 8px 16px 12px 16px;
   box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.02);
   max-width: 800px;
   margin: 0 auto;
   width: 100%;
 }
 
+/* Markdown 渲染样式（适配气泡） */
+.markdown-body {
+  font-size: inherit;
+  line-height: inherit;
+  color: inherit;
+  text-align: left;
+}
+.markdown-body p {
+  margin: 0 0 8px 0;
+}
+.markdown-body p:last-child {
+  margin-bottom: 0;
+}
+.markdown-body code {
+  background-color: #f0f2f5;
+  padding: 2px 4px;
+  border-radius: 4px;
+  font-family: monospace;
+}
+.markdown-body pre {
+  background-color: #f0f2f5;
+  padding: 8px;
+  border-radius: 6px;
+  overflow-x: auto;
+}
+.markdown-body pre code {
+  background-color: transparent;
+  padding: 0;
+}
+.markdown-body ul, .markdown-body ol {
+  padding-left: 20px;
+  margin: 8px 0;
+}
+.markdown-body blockquote {
+  border-left: 4px solid #ebedf0;
+  padding-left: 12px;
+  color: #666;
+  margin: 8px 0;
+}
+
+/* ========== 响应式适配 ========== */
 @media (min-width: 768px) {
+  ::v-deep(.custom-nav .van-nav-bar__content) {
+    max-width: 800px;
+    padding-left: 24px;
+    padding-right: 24px;
+  }
   .chat-main {
     max-width: 800px;
     padding: 20px 24px;
   }
-
   .message-bubble {
     max-width: 80%;
     font-size: 16px;
     padding: 12px 18px !important;
   }
-
   .avatar {
     width: 42px;
     height: 42px;
     font-size: 20px;
   }
-
   .input-area {
     max-width: 800px;
     padding: 12px 24px 16px;
   }
-
   ::v-deep(.van-field) {
     font-size: 16px;
   }
-
   ::v-deep(.van-button--small) {
     height: 38px;
     padding: 0 24px;
     font-size: 14px;
   }
 }
-
 @media (min-width: 1200px) {
+  ::v-deep(.custom-nav .van-nav-bar__content) {
+    max-width: 900px;
+  }
   .chat-main {
     max-width: 900px;
   }
