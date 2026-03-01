@@ -1,98 +1,126 @@
 <template>
-  <van-config-provider class="chat-app">
-    <!-- 导航栏：背景全宽，内容居中 -->
-    <van-nav-bar
-      title="💰 理财小助手"
-      left-text="返回"
-      left-arrow
-      class="custom-nav"
-      @click-left="onBack"
-    >
-      <template #right>
-        <van-icon 
-          :name="chat.isLoading ? 'chat' : 'chat-o'" 
-          :color="chat.isLoading ? '#1989fa' : '#666'"
-          size="20"
-        />
-      </template>
-    </van-nav-bar>
-
-    <!-- 消息列表区域（可滚动） -->
-    <div class="chat-main" ref="messagesContainer">
-      <van-cell v-if="chat.messages.length === 0" class="welcome-cell">
-        <span class="welcome-text">👋 你好！我是你的理财助手，有什么可以帮你的吗？</span>
-      </van-cell>
-
-      <div v-for="message in chat.messages" :key="message.id" class="message-wrapper">
-        <!-- 用户消息（不渲染 Markdown） -->
-        <div v-if="message.role === 'user'" class="message-row user-row">
-          <van-cell class="message-bubble user-bubble">
-            <div v-for="part in message.parts" :key="part.type">
-              <div v-if="part.type === 'text'" class="message-text">{{ part.text }}</div>
-            </div>
-          </van-cell>
-          <van-icon name="contact" size="24" class="avatar user-avatar" />
+  <div class="chat-app">
+    <header class="chat-header">
+      <div class="header-content">
+        <div class="logo">
+          <div class="logo-avatar">
+            <img src="/yuanbao.png" alt="圆宝" class="avatar-img" />
+          </div>
+          <div class="logo-text-wrap">
+            <span class="logo-text">圆宝</span>
+            <span class="logo-subtext">你的理财小助手</span>
+          </div>
         </div>
-
-        <!-- AI 消息（渲染 Markdown） -->
-        <div v-else class="message-row assistant-row">
-          <van-icon name="service-o" size="24" class="avatar assistant-avatar" />
-          <van-cell class="message-bubble assistant-bubble">
-            <div v-for="part in message.parts" :key="part.type">
-              <div v-if="part.type === 'text'" class="markdown-body" v-html="renderMarkdown(part.text)"></div>
-            </div>
-          </van-cell>
+        <div class="header-status" v-if="isLoading">
+          <span class="status-paw"></span>
+          <span class="status-text">喵呜~正在思考...</span>
         </div>
       </div>
+    </header>
 
-      <!-- AI 正在输入指示器 -->
-      <div v-if="chat.isLoading" class="message-row assistant-row">
-        <van-icon name="service-o" size="24" class="avatar assistant-avatar" />
-        <van-cell class="message-bubble assistant-bubble loading-bubble">
-          <van-loading type="dots" size="18px" color="#666" />
-        </van-cell>
+    <main class="chat-main" ref="messagesContainer">
+      <div class="messages-wrapper">
+        <div v-if="chat.messages.length === 0" class="welcome-section">
+          <div class="welcome-avatar">
+            <img src="/yuanbao.png" alt="圆宝" class="avatar-img" />
+          </div>
+          <h2 class="welcome-title">你好呀！我是圆宝~ 🐱</h2>
+          <p class="welcome-desc">一只懂理财的金渐层，让我帮你管理财富吧！</p>
+          <div class="quick-questions">
+            <button class="quick-btn" @click="quickAsk('如何开始理财？')">
+              <span class="btn-icon">💰</span>如何开始理财？
+            </button>
+            <button class="quick-btn" @click="quickAsk('新手适合买什么基金？')">
+              <span class="btn-icon">📈</span>新手买什么基金？
+            </button>
+            <button class="quick-btn" @click="quickAsk('什么是复利？')">
+              <span class="btn-icon">🔄</span>什么是复利？
+            </button>
+            <button class="quick-btn" @click="quickAsk('每月存多少钱合适？')">
+              <span class="btn-icon">🐟</span>每月存多少钱？
+            </button>
+          </div>
+        </div>
+
+        <div v-for="message in chat.messages" :key="message.id" class="message-item" :class="message.role">
+          <div class="message-avatar" :class="message.role">
+            <img v-if="message.role === 'user'" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='24' r='14' fill='%23FFE066'/%3E%3Cellipse cx='32' cy='44' rx='18' ry='14' fill='%23FFE066'/%3E%3Cellipse cx='32' cy='42' rx='14' ry='10' fill='%23FFF3B0'/%3E%3Ccircle cx='26' cy='22' r='3' fill='%231a1a1a'/%3E%3Ccircle cx='38' cy='22' r='3' fill='%231a1a1a'/%3E%3Ccircle cx='27' cy='21' r='1' fill='%23fff'/%3E%3Ccircle cx='39' cy='21' r='1' fill='%23fff'/%3E%3Cpath d='M30 28H34' stroke='%231a1a1a' stroke-width='2' stroke-linecap='round'/%3E%3Cellipse cx='32' cy='26' rx='2' ry='1.5' fill='%23FF9999'/%3E%3C/svg%3E" alt="用户" class="avatar-img" />
+            <img v-else src="/yuanbao.png" alt="圆宝" class="avatar-img" />
+          </div>
+          <div class="message-content">
+            <div v-for="part in message.parts" :key="part.type">
+              <div v-if="part.type === 'text' && part.text" class="message-text" v-html="renderMarkdown(part.text)"></div>
+            </div>
+          </div>
+        </div>
+
+        <div v-if="isLoading" class="message-item assistant loading">
+          <div class="message-avatar assistant loading-avatar">
+            <img src="/yuanbao.png" alt="圆宝" class="avatar-img" />
+          </div>
+          <div class="message-content loading-content">
+            <div class="loading-bubbles">
+              <span class="bubble"></span>
+              <span class="bubble"></span>
+              <span class="bubble"></span>
+            </div>
+            <div class="loading-text-wrap">
+              <span class="loading-text">圆宝正在思考...</span>
+              <span class="loading-cat">🐱</span>
+            </div>
+          </div>
+        </div>
+
+        <div ref="scrollAnchor"></div>
       </div>
+    </main>
 
-      <div ref="scrollAnchor"></div>
-    </div>
-
-    <!-- 底部输入区 -->
-    <div class="input-area">
-      <van-field
-        v-model="input"
-        type="text"
-        placeholder="输入你的问题..."
-        :disabled="chat.isLoading"
-        autocomplete="off"
-        @keyup.enter="handleSubmit"
-      >
-        <template #button>
-          <van-button
-            type="primary"
-            :disabled="chat.isLoading || !input.trim()"
-            @click="handleSubmit"
-            size="small"
+    <footer class="chat-footer">
+      <form class="input-form" @submit="handleSubmit">
+        <div class="input-wrapper">
+          <input
+            v-model="input"
+            type="text"
+            placeholder="告诉圆宝你想了解什么..."
+            :disabled="isLoading"
+            autocomplete="off"
+            class="chat-input"
+          />
+          <button
+            type="submit"
+            class="send-btn"
+            :disabled="isLoading || !input.trim()"
+            :class="{ sending: isLoading }"
           >
-            <template v-if="!chat.isLoading">发送</template>
-            <template v-else>
-              <van-loading type="spinner" size="16px" color="#fff" />
-            </template>
-          </van-button>
-        </template>
-      </van-field>
+            <svg v-if="!isLoading" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M4 12L20 12M20 12L12 5M20 12L12 19" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            <span v-else class="btn-loader"></span>
+          </button>
+        </div>
+        <p class="disclaimer">🐾 内容仅供科普参考，不构成投资建议哦，喵~</p>
+      </form>
+    </footer>
+
+    <div class="decoration-left">
+      <span class="star">⭐</span>
+      <span class="star">✨</span>
+      <span class="paw">🐾</span>
     </div>
-  </van-config-provider>
+    <div class="decoration-right">
+      <span class="star">💰</span>
+      <span class="star">📈</span>
+      <span class="paw">🐱</span>
+    </div>
+  </div>
 </template>
 
 <script setup>
-import { ref, nextTick, watch } from 'vue'
+import { ref, nextTick, watch, computed } from 'vue'
 import { Chat } from '@ai-sdk/vue'
-import { showToast } from 'vant'
 import { marked } from 'marked'
 import hljs from 'highlight.js'
-import 'highlight.js/styles/github.css' // 代码高亮主题
 
-// 配置 marked 使用 highlight.js 高亮代码
 marked.setOptions({
   highlight: (code, lang) => {
     if (lang && hljs.getLanguage(lang)) {
@@ -100,8 +128,8 @@ marked.setOptions({
     }
     return hljs.highlightAuto(code).value
   },
-  breaks: true,      // 将换行符转换为 <br>
-  gfm: true          // 使用 GitHub 风格 Markdown
+  breaks: true,
+  gfm: true
 })
 
 const chat = new Chat({})
@@ -109,20 +137,25 @@ const input = ref('')
 const messagesContainer = ref(null)
 const scrollAnchor = ref(null)
 
-const onBack = () => {
-  showToast('返回功能待实现')
-}
+const isLoading = computed(() => {
+  return chat.status === 'submitted'
+})
 
 const handleSubmit = (e) => {
   e?.preventDefault()
-  if (input.value.trim() && !chat.isLoading) {
+  if (input.value.trim() && !isLoading.value) {
     chat.sendMessage({ text: input.value })
     input.value = ''
   }
 }
 
-// Markdown 渲染函数（返回 HTML 字符串）
+const quickAsk = (question) => {
+  input.value = question
+  handleSubmit()
+}
+
 const renderMarkdown = (text) => {
+  console.log('renderMarkdown', text)
   return marked.parse(text)
 }
 
@@ -135,234 +168,638 @@ const scrollToBottom = () => {
 }
 
 watch(
-  [() => chat.messages, () => chat.isLoading],
+  [() => chat.messages, () => chat.status],
   scrollToBottom,
   { deep: true }
 )
 </script>
 
 <style scoped>
-/* 引入代码高亮样式（已在 script 中引入，此处为备用） */
 @import 'highlight.js/styles/github.css';
 
-/* 整体 flex 列布局 */
+:root {
+  --bg-primary: #FFFEF5;
+  --bg-secondary: #FFF8E7;
+  --bg-tertiary: #FFEFC7;
+  --text-primary: #2D2D2D;
+  --text-secondary: #5A5A5A;
+  --text-tertiary: #8A8A8A;
+  --accent-color: #FFB347;
+  --accent-hover: #FF9F1C;
+  --accent-dark: #E8941A;
+  --user-bubble: #FFE4B5;
+  --user-bubble-text: #5A4A2A;
+  --assistant-bubble: #FFF8E7;
+  --assistant-border: #FFE4B5;
+  --border-color: #FFD89B;
+  --shadow: 0 4px 20px rgba(255, 179, 71, 0.2);
+  --radius: 16px;
+  --radius-lg: 24px;
+}
+
 .chat-app {
   height: 100vh;
   display: flex;
   flex-direction: column;
-  background-color: #ffffff;
+  background: linear-gradient(135deg, #FFFEF5 0%, #FFF8E7 50%, #FFF5DC 100%);
+  position: relative;
+  overflow: hidden;
 }
 
-/* 导航栏自定义：去除下边框，内部内容与消息区域同宽 */
-.custom-nav {
-  border-bottom: none !important;
-  width: 100%;
+.decoration-left, .decoration-right {
+  position: fixed;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  opacity: 0.15;
+  pointer-events: none;
+  z-index: 0;
 }
-::v-deep(.custom-nav .van-nav-bar__content) {
-  max-width: 800px;
+
+.decoration-left {
+  left: 10px;
+}
+
+.decoration-right {
+  right: 10px;
+}
+
+.decoration-left .star, .decoration-right .star,
+.decoration-left .paw, .decoration-right .paw {
+  font-size: 24px;
+  animation: float 3s ease-in-out infinite;
+}
+
+.decoration-left .star:nth-child(1) { animation-delay: 0s; }
+.decoration-left .star:nth-child(2) { animation-delay: 0.5s; }
+.decoration-left .paw:nth-child(3) { animation-delay: 1s; }
+
+.decoration-right .star:nth-child(1) { animation-delay: 0.3s; }
+.decoration-right .star:nth-child(2) { animation-delay: 0.8s; }
+.decoration-right .paw:nth-child(3) { animation-delay: 1.2s; }
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+
+.chat-header {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: linear-gradient(180deg, rgba(255,254,245,0.98) 0%, rgba(255,248,231,0.95) 100%);
+  backdrop-filter: blur(20px);
+  border-bottom: 2px solid var(--border-color);
+  box-shadow: 0 4px 20px rgba(255, 179, 71, 0.1);
+}
+
+.header-content {
+  max-width: 900px;
   margin: 0 auto;
-  width: 100%;
-  padding-left: 16px;
-  padding-right: 16px;
+  padding: 14px 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 
-/* 消息列表主区域 */
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.logo-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #FFE066 0%, #FFB347 100%);
+  box-shadow: 0 4px 12px rgba(255, 179, 71, 0.3);
+  overflow: hidden;
+  animation: bounce 2s ease-in-out infinite;
+}
+
+@keyframes bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-3px); }
+}
+
+.logo-avatar svg, .logo-avatar .avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.logo-text-wrap {
+  display: flex;
+  flex-direction: column;
+}
+
+.logo-text {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-primary);
+  background: linear-gradient(135deg, #FF9F1C 0%, #FFB347 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.logo-subtext {
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
+.header-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: linear-gradient(135deg, #FFF8E7 0%, #FFEFC7 100%);
+  border: 1px solid var(--border-color);
+  border-radius: 24px;
+  box-shadow: var(--shadow);
+}
+
+.status-paw {
+  font-size: 16px;
+  animation: pawTap 0.5s ease-in-out infinite;
+}
+
+@keyframes pawTap {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.2); }
+}
+
+.status-text {
+  font-size: 13px;
+  color: var(--accent-dark);
+  font-weight: 600;
+}
+
 .chat-main {
   flex: 1;
   overflow-y: auto;
-  padding: 12px 16px 20px 16px;
-  background-color: #ffffff;
   -webkit-overflow-scrolling: touch;
-  max-width: 800px;
+  position: relative;
+  z-index: 1;
+}
+
+.messages-wrapper {
+  max-width: 900px;
   margin: 0 auto;
-  width: 100%;
+  padding: 24px 20px 120px;
 }
 
-/* 欢迎语单元格 */
-.welcome-cell {
-  margin-top: 20px;
-  border-radius: 12px;
-  text-align: center;
-  background-color: #f5f5f5;
-}
-.welcome-text {
-  font-size: 14px;
-  color: #666;
-  display: block;
-  text-align: center;
-}
-
-/* 消息行容器 */
-.message-wrapper {
-  margin-bottom: 12px;
-}
-.message-row {
+.welcome-section {
   display: flex;
-  align-items: flex-start;
-  gap: 8px;
-}
-.user-row {
-  justify-content: flex-end;
-}
-.assistant-row {
-  justify-content: flex-start;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
+  text-align: center;
 }
 
-/* 头像样式 */
-.avatar {
-  flex-shrink: 0;
-  width: 36px;
-  height: 36px;
+.welcome-avatar {
+  width: 120px;
+  height: 120px;
+  margin-bottom: 24px;
+  animation: wiggle 2s ease-in-out infinite;
+}
+
+@keyframes wiggle {
+  0%, 100% { transform: rotate(-3deg); }
+  50% { transform: rotate(3deg); }
+}
+
+.welcome-avatar svg, .welcome-avatar .avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  filter: drop-shadow(0 8px 20px rgba(255, 179, 71, 0.3));
+}
+
+.welcome-title {
+  font-size: 26px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0 0 12px;
+}
+
+.welcome-title span {
+  display: inline-block;
+}
+
+.welcome-desc {
+  font-size: 15px;
+  color: var(--text-secondary);
+  margin: 0 0 28px;
+  max-width: 320px;
+}
+
+.quick-questions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: center;
+  max-width: 480px;
+}
+
+.quick-btn {
+  padding: 12px 20px;
+  background: linear-gradient(135deg, #FFFFFF 0%, #FFF8E7 100%);
+  border: 2px solid var(--border-color);
+  border-radius: 20px;
+  font-size: 14px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.quick-btn:hover {
+  background: linear-gradient(135deg, #FFF8E7 0%, #FFEFC7 100%);
+  color: var(--accent-dark);
+  border-color: var(--accent-color);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(255, 179, 71, 0.25);
+}
+
+.btn-icon {
+  font-size: 16px;
+}
+
+.message-item {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 20px;
+  animation: slideIn 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes slideIn {
+  from { opacity: 0; transform: translateY(20px) scale(0.95); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.message-item.user {
+  flex-direction: row-reverse;
+}
+
+.message-avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 50%;
-  background-color: #fff;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
-}
-.user-avatar {
-  color: #1989fa;
-}
-.assistant-avatar {
-  color: #07c160;
+  flex-shrink: 0;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
-/* 消息气泡基础样式 */
-.message-bubble {
-  max-width: 70%;
-  padding: 10px 14px !important;
-  border-radius: 18px !important;
-  word-wrap: break-word;
-  white-space: pre-wrap;
-  font-size: 14px;
-  line-height: 1.5;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.03);
-  transition: all 0.2s;
-  text-align: left !important;
-}
-.message-text {
-  white-space: pre-wrap;
-  text-align: left !important;
+.message-avatar.user {
+  background: linear-gradient(135deg, #FFE066 0%, #FFB347 100%);
 }
 
-/* 用户气泡 */
-.user-bubble {
-  background-color: #e6f7ff !important;
-  color: #333 !important;
-  border-bottom-right-radius: 4px !important;
+.message-avatar.assistant {
+  background: linear-gradient(135deg, #FFF8E7 0%, #FFE4B5 100%);
+  border: 2px solid var(--border-color);
+}
+
+.message-avatar svg, .message-avatar .avatar-img {
+  width: 36px;
+  height: 36px;
+  object-fit: cover;
+}
+
+.loading-avatar {
+  animation: pulse 1s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+}
+
+.message-content {
+  max-width: 75%;
+  padding: 16px 20px;
+  border-radius: var(--radius-lg);
+  line-height: 1.6;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+}
+
+.message-item.user .message-content {
+  background: linear-gradient(135deg, #FFE4B5 0%, #FFD699 100%);
+  color: var(--user-bubble-text);
+  border-bottom-right-radius: 4px;
   border: none;
 }
 
-/* AI 气泡 */
-.assistant-bubble {
-  background-color: white !important;
-  color: #333 !important;
-  border: 1px solid #ebedf0;
-  border-bottom-left-radius: 4px !important;
+.message-item.assistant .message-content {
+  background: linear-gradient(135deg, #FFFFFF 0%, #FFFEF5 100%);
+  color: var(--text-primary);
+  border-bottom-left-radius: 4px;
+  border: 2px solid var(--assistant-border);
 }
 
-/* 加载气泡 */
-.loading-bubble {
-  background-color: #f0f2f5 !important;
-  border-color: transparent;
-  min-width: 60px;
-  padding: 12px 16px !important;
+.message-text {
+  white-space: pre-wrap;
+  word-wrap: break-word;
 }
 
-/* 底部输入区 */
-.input-area {
-  background-color: white;
-  border-top: 1px solid #ebedf0;
-  padding: 8px 16px 12px 16px;
-  box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.02);
-  max-width: 800px;
-  margin: 0 auto;
-  width: 100%;
+.message-item.assistant .message-text :deep(p) {
+  margin: 0 0 14px;
 }
 
-/* Markdown 渲染样式（适配气泡） */
-.markdown-body {
-  font-size: inherit;
-  line-height: inherit;
-  color: inherit;
-  text-align: left;
-}
-.markdown-body p {
-  margin: 0 0 8px 0;
-}
-.markdown-body p:last-child {
+.message-item.assistant .message-text :deep(p:last-child) {
   margin-bottom: 0;
 }
-.markdown-body code {
-  background-color: #f0f2f5;
-  padding: 2px 4px;
-  border-radius: 4px;
-  font-family: monospace;
-}
-.markdown-body pre {
-  background-color: #f0f2f5;
-  padding: 8px;
+
+.message-item.assistant .message-text :deep(code) {
+  background: linear-gradient(135deg, #FFF8E7 0%, #FFEFC7 100%);
+  padding: 2px 8px;
   border-radius: 6px;
-  overflow-x: auto;
-}
-.markdown-body pre code {
-  background-color: transparent;
-  padding: 0;
-}
-.markdown-body ul, .markdown-body ol {
-  padding-left: 20px;
-  margin: 8px 0;
-}
-.markdown-body blockquote {
-  border-left: 4px solid #ebedf0;
-  padding-left: 12px;
-  color: #666;
-  margin: 8px 0;
+  font-family: 'SF Mono', Monaco, monospace;
+  font-size: 13px;
+  color: var(--accent-dark);
 }
 
-/* ========== 响应式适配 ========== */
-@media (min-width: 768px) {
-  ::v-deep(.custom-nav .van-nav-bar__content) {
-    max-width: 800px;
-    padding-left: 24px;
-    padding-right: 24px;
+.message-item.assistant .message-text :deep(pre) {
+  background: linear-gradient(135deg, #5A4A2A 0%, #3D2E1A 100%);
+  padding: 14px;
+  border-radius: 12px;
+  overflow-x: auto;
+  margin: 14px 0;
+}
+.message-item.assistant .message-text :deep(pre code) {
+  background: transparent;
+  padding: 0;
+  color: #FFE066;
+}
+
+.message-item.assistant .message-text :deep(ul),
+.message-item.assistant .message-text :deep(ol) {
+  padding-left: 24px;
+  margin: 12px 0;
+}
+
+.message-item.assistant .message-text :deep(li) {
+  margin: 6px 0;
+}
+
+.message-item.assistant .message-text :deep(blockquote) {
+  border-left: 4px solid var(--accent-color);
+  background: linear-gradient(135deg, #FFF8E7 0%, #FFEFC7 100%);
+  padding: 12px 16px;
+  border-radius: 0 12px 12px 0;
+  margin: 14px 0;
+  color: var(--text-secondary);
+}
+
+.message-item.assistant .message-text :deep(strong) {
+  color: var(--accent-dark);
+}
+
+.loading-content {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.loading-bubbles {
+  display: flex;
+  gap: 6px;
+}
+
+.loading-bubbles .bubble {
+  width: 10px;
+  height: 10px;
+  background: linear-gradient(135deg, #FFB347 0%, #FF9F1C 100%);
+  border-radius: 50%;
+  animation: bubblePop 1.4s ease-in-out infinite;
+}
+
+.loading-bubbles .bubble:nth-child(1) { animation-delay: 0s; }
+.loading-bubbles .bubble:nth-child(2) { animation-delay: 0.2s; }
+.loading-bubbles .bubble:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes bubblePop {
+  0%, 60%, 100% { transform: scale(1); opacity: 0.6; }
+  30% { transform: scale(1.3); opacity: 1; }
+}
+
+.loading-text-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.loading-text {
+  font-size: 13px;
+  color: var(--text-tertiary);
+}
+
+.loading-cat {
+  font-size: 16px;
+  animation: catTail 0.5s ease-in-out infinite alternate;
+}
+
+@keyframes catTail {
+  from { transform: rotate(-10deg); }
+  to { transform: rotate(10deg); }
+}
+
+.chat-footer {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: linear-gradient(180deg, rgba(255,254,245,0.98) 0%, rgba(255,254,245,0.95) 100%);
+  backdrop-filter: blur(20px);
+  border-top: 2px solid var(--border-color);
+  padding: 14px 20px 24px;
+  z-index: 100;
+  box-shadow: 0 -4px 30px rgba(255, 179, 71, 0.1);
+}
+
+.input-form {
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+.input-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: linear-gradient(135deg, #FFFFFF 0%, #FFF8E7 100%);
+  border: 2px solid var(--border-color);
+  border-radius: 28px;
+  padding: 8px 8px 8px 24px;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 4px 16px rgba(255, 179, 71, 0.1);
+}
+
+.input-wrapper:focus-within {
+  border-color: var(--accent-color);
+  box-shadow: 0 6px 24px rgba(255, 179, 71, 0.25);
+  transform: translateY(-2px);
+}
+
+.chat-input {
+  flex: 1;
+  border: none;
+  background: transparent;
+  font-size: 15px;
+  color: var(--text-primary);
+  outline: none;
+}
+
+.chat-input::placeholder {
+  color: var(--text-tertiary);
+}
+
+.chat-input:disabled {
+  opacity: 0.6;
+}
+
+.send-btn {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #FFB347 0%, #FF9F1C 100%);
+  border: none;
+  color: white;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 4px 12px rgba(255, 179, 71, 0.3);
+}
+
+.send-btn:hover:not(:disabled) {
+  background: linear-gradient(135deg, #FF9F1C 0%, #E8941A 100%);
+  transform: scale(1.08);
+  box-shadow: 0 6px 20px rgba(255, 179, 71, 0.4);
+}
+
+.send-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.send-btn svg {
+  width: 18px;
+  height: 18px;
+}
+
+.btn-loader {
+  width: 18px;
+  height: 18px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: white;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.disclaimer {
+  text-align: center;
+  font-size: 12px;
+  color: var(--text-tertiary);
+  margin: 14px 0 0;
+}
+
+@media (max-width: 768px) {
+  .header-content {
+    padding: 10px 16px;
   }
-  .chat-main {
-    max-width: 800px;
-    padding: 20px 24px;
+
+  .logo-avatar {
+    width: 40px;
+    height: 40px;
   }
-  .message-bubble {
-    max-width: 80%;
-    font-size: 16px;
-    padding: 12px 18px !important;
+
+  .logo-text {
+    font-size: 18px;
   }
-  .avatar {
-    width: 42px;
-    height: 42px;
-    font-size: 20px;
+
+  .logo-subtext {
+    font-size: 11px;
   }
-  .input-area {
-    max-width: 800px;
-    padding: 12px 24px 16px;
+
+  .header-status {
+    padding: 6px 12px;
   }
-  ::v-deep(.van-field) {
-    font-size: 16px;
+
+  .status-text {
+    font-size: 12px;
   }
-  ::v-deep(.van-button--small) {
+
+  .messages-wrapper {
+    padding: 16px 12px 140px;
+  }
+
+  .message-content {
+    max-width: 82%;
+    padding: 14px 16px;
+  }
+
+  .message-avatar {
+    width: 38px;
     height: 38px;
-    padding: 0 24px;
+  }
+
+  .message-avatar svg, .message-avatar .avatar-img {
+    width: 30px;
+    height: 30px;
+  }
+
+  .welcome-section {
+    padding: 30px 16px;
+  }
+
+  .welcome-avatar {
+    width: 90px;
+    height: 90px;
+  }
+
+  .welcome-title {
+    font-size: 22px;
+  }
+
+  .welcome-desc {
     font-size: 14px;
   }
-}
-@media (min-width: 1200px) {
-  ::v-deep(.custom-nav .van-nav-bar__content) {
-    max-width: 900px;
+
+  .quick-btn {
+    padding: 10px 16px;
+    font-size: 13px;
   }
-  .chat-main {
-    max-width: 900px;
+
+  .chat-footer {
+    padding: 10px 12px 20px;
   }
-  .input-area {
-    max-width: 900px;
+
+  .input-wrapper {
+    padding: 6px 6px 6px 16px;
+    border-radius: 24px;
+  }
+
+  .send-btn {
+    width: 40px;
+    height: 40px;
+  }
+
+  .decoration-left, .decoration-right {
+    display: none;
   }
 }
 </style>
