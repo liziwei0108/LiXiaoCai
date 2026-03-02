@@ -155,8 +155,13 @@ const handleSubmit = (e) => {
 
 const handleKeydown = (e) => {
   if (e.ctrlKey && e.key === 'Enter') {
+    // Ctrl+Enter 换行
     e.preventDefault()
     input.value += '\n'
+  } else if (e.key === 'Enter' && !e.shiftKey) {
+    // Enter 键提交
+    e.preventDefault()
+    handleSubmit(e)
   }
 }
 
