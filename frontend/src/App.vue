@@ -49,7 +49,7 @@
           </div>
           <div class="message-content">
             <div v-for="part in message.parts" :key="part.type">
-              <div v-if="part.type === 'text' && part.text" class="message-text" v-html="renderMarkdown(part.text)"></div>
+              <div v-if="part.type === 'text' && part.text" class="message-text" v-html="part.text ? renderMarkdown(part.text): '思考ing'"></div>
             </div>
           </div>
         </div>
@@ -139,7 +139,7 @@ const { chat, input, isLoading, messages } = storeToRefs(chatStore)
 const scrollAnchor = ref(null)
 
 const renderMarkdown = (text) => {
-  console.log('renderMarkdown', text)
+  console.log('renderMarkdown'+text+'-----')
   return marked.parse(text)
 }
 
@@ -482,8 +482,8 @@ watch(
 
 .message-content {
   max-width: 75%;
-  padding: 16px 20px;
-  border-radius: var(--radius-lg);
+  padding: 16px;
+  border-radius: 24px;
   line-height: 1.6;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
 }
@@ -491,19 +491,18 @@ watch(
 .message-item.user .message-content {
   background: linear-gradient(135deg, #FFE4B5 0%, #FFD699 100%);
   color: var(--user-bubble-text);
-  border-bottom-right-radius: 4px;
+  border-top-right-radius: 4px;
   border: none;
 }
 
 .message-item.assistant .message-content {
   background: linear-gradient(135deg, #FFFFFF 0%, #FFFEF5 100%);
   color: var(--text-primary);
-  border-bottom-left-radius: 4px;
+  border-top-left-radius: 4px;
   border: 2px solid var(--assistant-border);
 }
 
 .message-text {
-  white-space: pre-wrap;
   word-wrap: break-word;
 }
 
