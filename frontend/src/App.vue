@@ -18,9 +18,9 @@
       </div>
     </header>
 
-    <main class="chat-main" ref="messagesContainer">
+    <main class="chat-main">
       <div class="messages-wrapper">
-        <div v-if="chat.messages.length === 0" class="welcome-section">
+        <div v-if="messages.length === 0" class="welcome-section">
           <div class="welcome-avatar">
             <img src="/yuanbao.png" alt="圆宝" class="avatar-img" />
           </div>
@@ -42,7 +42,7 @@
           </div>
         </div>
 
-        <div v-for="message in chat.messages" :key="message.id" class="message-item" :class="message.role">
+        <div v-for="message in messages" :key="message.id" class="message-item" :class="message.role">
           <div class="message-avatar" :class="message.role">
             <img v-if="message.role === 'user'" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='24' r='14' fill='%23FFE066'/%3E%3Cellipse cx='32' cy='44' rx='18' ry='14' fill='%23FFE066'/%3E%3Cellipse cx='32' cy='42' rx='14' ry='10' fill='%23FFF3B0'/%3E%3Ccircle cx='26' cy='22' r='3' fill='%231a1a1a'/%3E%3Ccircle cx='38' cy='22' r='3' fill='%231a1a1a'/%3E%3Ccircle cx='27' cy='21' r='1' fill='%23fff'/%3E%3Ccircle cx='39' cy='21' r='1' fill='%23fff'/%3E%3Cpath d='M30 28H34' stroke='%231a1a1a' stroke-width='2' stroke-linecap='round'/%3E%3Cellipse cx='32' cy='26' rx='2' ry='1.5' fill='%23FF9999'/%3E%3C/svg%3E" alt="用户" class="avatar-img" />
             <img v-else src="/yuanbao.png" alt="圆宝" class="avatar-img" />
@@ -116,10 +116,11 @@
 </template>
 
 <script setup>
-import { ref, nextTick, watch, computed } from 'vue'
-import { Chat } from '@ai-sdk/vue'
+import { watch, ref, nextTick } from 'vue'
+import { useChatStore } from './stores/chatStore'
 import { marked } from 'marked'
 import hljs from 'highlight.js'
+import { storeToRefs } from 'pinia'
 
 marked.setOptions({
   highlight: (code, lang) => {
@@ -132,19 +133,20 @@ marked.setOptions({
   gfm: true
 })
 
-const chat = new Chat({})
-const input = ref('')
-const messagesContainer = ref(null)
+const chatStore = useChatStore()
+const { chat, input, isLoading, messages } = storeToRefs(chatStore)
+
 const scrollAnchor = ref(null)
 
-const isLoading = computed(() => {
-  return chat.status === 'submitted'
-})
+const renderMarkdown = (text) => {
+  console.log('renderMarkdown', text)
+  return marked.parse(text)
+}
 
 const handleSubmit = (e) => {
   e?.preventDefault()
   if (input.value.trim() && !isLoading.value) {
-    chat.sendMessage({ text: input.value })
+    chatStore.chat.sendMessage({ text: input.value })
     input.value = ''
   }
 }
@@ -152,11 +154,6 @@ const handleSubmit = (e) => {
 const quickAsk = (question) => {
   input.value = question
   handleSubmit()
-}
-
-const renderMarkdown = (text) => {
-  console.log('renderMarkdown', text)
-  return marked.parse(text)
 }
 
 const scrollToBottom = () => {
@@ -168,7 +165,7 @@ const scrollToBottom = () => {
 }
 
 watch(
-  [() => chat.messages, () => chat.status],
+  [() => messages.value, () => chatStore.chat.status],
   scrollToBottom,
   { deep: true }
 )
