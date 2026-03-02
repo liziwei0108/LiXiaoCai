@@ -78,14 +78,14 @@
     <footer class="chat-footer">
       <form class="input-form" @submit="handleSubmit">
         <div class="input-wrapper">
-          <input
+          <textarea
             v-model="input"
-            type="text"
             placeholder="告诉圆宝你想了解什么..."
             :disabled="isLoading"
             autocomplete="off"
             class="chat-input"
-          />
+            @keydown="handleKeydown"
+          ></textarea>
           <button
             type="submit"
             class="send-btn"
@@ -150,6 +150,13 @@ const handleSubmit = (e) => {
   if (input.value.trim() && !isLoading.value) {
     chatStore.chat.sendMessage({ text: input.value })
     input.value = ''
+  }
+}
+
+const handleKeydown = (e) => {
+  if (e.ctrlKey && e.key === 'Enter') {
+    e.preventDefault()
+    input.value += '\n'
   }
 }
 
@@ -637,14 +644,15 @@ watch(
 
 .input-wrapper {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 12px;
   background: linear-gradient(135deg, #FFFFFF 0%, #FFF8E7 100%);
   border: 2px solid var(--border-color);
   border-radius: 28px;
-  padding: 8px 8px 8px 24px;
+  padding: 12px 12px 12px 24px;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   box-shadow: 0 4px 16px rgba(255, 179, 71, 0.1);
+  min-height: 44px;
 }
 
 .input-wrapper:focus-within {
@@ -657,9 +665,15 @@ watch(
   flex: 1;
   border: none;
   background: transparent;
-  font-size: 15px;
+  font-size: 16px;
   color: var(--text-primary);
   outline: none;
+  resize: none;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  min-height: 20px;
+  max-height: 120px;
+  overflow-y: auto;
 }
 
 .chat-input::placeholder {
@@ -683,6 +697,7 @@ watch(
   justify-content: center;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   box-shadow: 0 4px 12px rgba(255, 179, 71, 0.3);
+  margin-top: -4px;
 }
 
 .send-btn:hover:not(:disabled) {

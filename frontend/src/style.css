@@ -15,7 +15,7 @@ html, body {
   height: 100%;
 }
 
-input, button {
+input, button, textarea {
   font-family: inherit;
 }
 
