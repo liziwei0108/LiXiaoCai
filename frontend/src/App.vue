@@ -49,7 +49,7 @@
           </div>
           <div class="message-content">
             <div v-for="part in message.parts" :key="part.type">
-              <div v-if="part.type === 'text' && part.text" class="message-text" v-html="part.text ? renderMarkdown(part.text): '思考ing'"></div>
+              <div v-if="part.type === 'text' && part.text" class="message-text" v-html="renderMarkdown(part.text)"></div>
             </div>
           </div>
         </div>
@@ -139,7 +139,9 @@ const { chat, input, isLoading, messages } = storeToRefs(chatStore)
 const scrollAnchor = ref(null)
 
 const renderMarkdown = (text) => {
-  console.log('renderMarkdown'+text+'-----')
+  if (!text || text.trim() === '') {
+    return '<span class="thinking-text">思考中...</span>'
+  }
   return marked.parse(text)
 }
 
@@ -504,6 +506,13 @@ watch(
 
 .message-text {
   word-wrap: break-word;
+  font-size: 16px;
+}
+
+.thinking-text {
+  color: var(--text-tertiary);
+  font-style: italic;
+  opacity: 0.7;
 }
 
 .message-item.assistant .message-text :deep(p) {
@@ -708,9 +717,9 @@ watch(
 
 .disclaimer {
   text-align: center;
-  font-size: 12px;
+  font-size: 11px;
   color: var(--text-tertiary);
-  margin: 14px 0 0;
+  margin: 12px 0 0;
 }
 
 @media (max-width: 768px) {
