@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { Chat } from '@ai-sdk/vue'
 
 export const useChatStore = defineStore('chat', () => {
@@ -11,6 +11,10 @@ export const useChatStore = defineStore('chat', () => {
   })
 
   const messages = computed(() => chat.messages)
+
+  watch(() => messages.value, (newMessages) => {
+    console.log('Store messages changed:', JSON.stringify(newMessages, null, 2))
+  }, { deep: true })
 
   return {
     chat,
