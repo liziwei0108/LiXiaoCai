@@ -3,7 +3,9 @@ import { ref, computed, watch } from 'vue'
 import { Chat } from '@ai-sdk/vue'
 
 export const useChatStore = defineStore('chat', () => {
-  const chat = new Chat({})
+  const chat = new Chat({
+    id: 'testId'
+  })
   const input = ref('')
 
   const isLoading = computed(() => {

@@ -7,7 +7,12 @@ const openai = createOpenAI({
   apiKey: config.ai.apiKey,
 });
 
-export async function streamChatResponse(messages, res) {
+export async function streamChatResponse(messages, id,res) {
+  if(!id) {
+    console.error('id 不能为空');
+    throw new Error('id 不能为空');
+  }
+  console.log('----获取会话id', id)
   const modelMessages = await convertToModelMessages(messages);
   
   modelMessages.unshift({
