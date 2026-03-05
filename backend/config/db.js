@@ -7,9 +7,8 @@ const pool = new Pool({
   database: process.env.DB_NAME,
   user: process.env.DB_USER,
   password: process.env.DB_PASSWORD,
-  ssl: {
-    rejectUnauthorized: false // 阿里云RDS通常需要这个设置
-  },
+  // 暂时禁用 SSL，根据实际情况调整
+  ssl: false,
   max: 20, // 连接池最大连接数
   idleTimeoutMillis: 30000, // 连接空闲超时时间
   connectionTimeoutMillis: 2000, // 连接超时时间

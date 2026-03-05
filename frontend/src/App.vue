@@ -20,7 +20,8 @@
 
     <main class="chat-main">
       <div class="messages-wrapper">
-        <div v-if="messages.length === 0" class="welcome-section">
+
+        <div v-if="initMessages.length === 0 && chat?.messages.length === 0" class="welcome-section">
           <div class="welcome-avatar">
             <img src="/yuanbao.png" alt="圆宝" class="avatar-img" />
           </div>
@@ -42,14 +43,31 @@
           </div>
         </div>
 
-        <div v-for="message in messages" :key="message.id" class="message-item" :class="message.role">
-          <div class="message-avatar" :class="message.role">
-            <img v-if="message.role === 'user'" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='24' r='14' fill='%23FFE066'/%3E%3Cellipse cx='32' cy='44' rx='18' ry='14' fill='%23FFE066'/%3E%3Cellipse cx='32' cy='42' rx='14' ry='10' fill='%23FFF3B0'/%3E%3Ccircle cx='26' cy='22' r='3' fill='%231a1a1a'/%3E%3Ccircle cx='38' cy='22' r='3' fill='%231a1a1a'/%3E%3Ccircle cx='27' cy='21' r='1' fill='%23fff'/%3E%3Ccircle cx='39' cy='21' r='1' fill='%23fff'/%3E%3Cpath d='M30 28H34' stroke='%231a1a1a' stroke-width='2' stroke-linecap='round'/%3E%3Cellipse cx='32' cy='26' rx='2' ry='1.5' fill='%23FF9999'/%3E%3C/svg%3E" alt="用户" class="avatar-img" />
-            <img v-else src="/yuanbao.png" alt="圆宝" class="avatar-img" />
+
+        <div v-if="initMessages.length > 0">
+          <div v-for="message in initMessages" :key="message.id" class="message-item" :class="message.role">
+            <div class="message-avatar" :class="message.role">
+              <img v-if="message.role === 'user'" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='24' r='14' fill='%23FFE066'/%3E%3Cellipse cx='32' cy='44' rx='18' ry='14' fill='%23FFE066'/%3E%3Cellipse cx='32' cy='42' rx='14' ry='10' fill='%23FFF3B0'/%3E%3Ccircle cx='26' cy='22' r='3' fill='%231a1a1a'/%3E%3Ccircle cx='38' cy='22' r='3' fill='%231a1a1a'/%3E%3Ccircle cx='27' cy='21' r='1' fill='%23fff'/%3E%3Ccircle cx='39' cy='21' r='1' fill='%23fff'/%3E%3Cpath d='M30 28H34' stroke='%231a1a1a' stroke-width='2' stroke-linecap='round'/%3E%3Cellipse cx='32' cy='26' rx='2' ry='1.5' fill='%23FF9999'/%3E%3C/svg%3E" alt="用户" class="avatar-img" />
+              <img v-else src="/yuanbao.png" alt="圆宝" class="avatar-img" />
+            </div>
+            <div class="message-content">
+              <div v-for="part in message.parts" :key="part.type">
+                <div v-if="part.type === 'text' && part.text" class="message-text" v-html="renderMarkdown(part.text)"></div>
+              </div>
+            </div>
           </div>
-          <div class="message-content">
-            <div v-for="part in message.parts" :key="part.type">
-              <div v-if="part.type === 'text' && part.text" class="message-text" v-html="renderMarkdown(part.text)"></div>
+        </div>
+
+        <div v-if="chat && chat.messages.length > 0">
+          <div v-for="message in chat.messages" :key="message.id" class="message-item" :class="message.role">
+            <div class="message-avatar" :class="message.role">
+              <img v-if="message.role === 'user'" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='24' r='14' fill='%23FFE066'/%3E%3Cellipse cx='32' cy='44' rx='18' ry='14' fill='%23FFE066'/%3E%3Cellipse cx='32' cy='42' rx='14' ry='10' fill='%23FFF3B0'/%3E%3Ccircle cx='26' cy='22' r='3' fill='%231a1a1a'/%3E%3Ccircle cx='38' cy='22' r='3' fill='%231a1a1a'/%3E%3Ccircle cx='27' cy='21' r='1' fill='%23fff'/%3E%3Ccircle cx='39' cy='21' r='1' fill='%23fff'/%3E%3Cpath d='M30 28H34' stroke='%231a1a1a' stroke-width='2' stroke-linecap='round'/%3E%3Cellipse cx='32' cy='26' rx='2' ry='1.5' fill='%23FF9999'/%3E%3C/svg%3E" alt="用户" class="avatar-img" />
+              <img v-else src="/yuanbao.png" alt="圆宝" class="avatar-img" />
+            </div>
+            <div class="message-content">
+              <div v-for="part in message.parts" :key="part.type">
+                <div v-if="part.type === 'text' && part.text" class="message-text" v-html="renderMarkdown(part.text)"></div>
+              </div>
             </div>
           </div>
         </div>
@@ -116,11 +134,10 @@
 </template>
 
 <script setup>
-import { watch, ref, nextTick } from 'vue'
-import { useChatStore } from './stores/chatStore'
+import { watch, ref, nextTick, onMounted } from 'vue'
+import { Chat } from '@ai-sdk/vue'
 import { marked } from 'marked'
 import hljs from 'highlight.js'
-import { storeToRefs } from 'pinia'
 
 marked.setOptions({
   highlight: (code, lang) => {
@@ -133,10 +150,44 @@ marked.setOptions({
   gfm: true
 })
 
-const chatStore = useChatStore()
-const { chat, input, isLoading, messages } = storeToRefs(chatStore)
-
+const input = ref('')
+let chat = null
 const scrollAnchor = ref(null)
+const initMessages = ref([])
+
+const isLoading = computed(() => {
+  return chat?.status === 'submitted'
+})
+
+
+const fetchHistory = async () => {
+  try {
+    const response = await fetch('/api/history')
+    if (response.ok) {
+      const history = await response.json()
+      if (history && history.length > 0) {
+        initMessages.value = history
+      }
+    }
+  } catch (error) {
+    console.error('获取历史记录失败:', error)
+  }
+}
+
+
+onMounted(async() => {
+  await fetchHistory()
+  
+  chat = new Chat({
+    id: 'testId',
+  })
+
+  if(initMessages.value.length > 0) {
+    scrollToBottom()
+  }
+
+})
+
 
 const renderMarkdown = (text) => {
   if (!text || text.trim() === '') {
@@ -148,7 +199,7 @@ const renderMarkdown = (text) => {
 const handleSubmit = (e) => {
   e?.preventDefault()
   if (input.value.trim() && !isLoading.value) {
-    chatStore.chat.sendMessage({ text: input.value })
+    chat?.sendMessage({ text: input.value })
     input.value = ''
   }
 }
@@ -179,10 +230,11 @@ const scrollToBottom = () => {
 }
 
 watch(
-  [() => messages.value, () => chatStore.chat.status],
+  [() => chat?.messages, () => chat?.status],
   scrollToBottom,
   { deep: true }
 )
+
 </script>
 
 <style scoped>
@@ -627,6 +679,61 @@ watch(
 @keyframes catTail {
   from { transform: rotate(-10deg); }
   to { transform: rotate(10deg); }
+}
+
+.loading-section {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 40px 20px;
+}
+
+.error-section {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 40px 20px;
+}
+
+.error-content {
+  background: linear-gradient(135deg, #FFECEC 0%, #FFD6D6 100%);
+  border: 2px solid #FFB3B3;
+  border-radius: 16px;
+  padding: 24px;
+  text-align: center;
+  max-width: 400px;
+  box-shadow: 0 4px 16px rgba(255, 179, 179, 0.2);
+}
+
+.error-icon {
+  font-size: 48px;
+  margin-bottom: 16px;
+  display: block;
+}
+
+.error-text {
+  font-size: 14px;
+  color: #D32F2F;
+  margin: 0 0 20px;
+  line-height: 1.5;
+}
+
+.retry-btn {
+  padding: 10px 20px;
+  background: linear-gradient(135deg, #FFB347 0%, #FF9F1C 100%);
+  border: none;
+  border-radius: 20px;
+  font-size: 14px;
+  color: white;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 4px 12px rgba(255, 179, 71, 0.3);
+}
+
+.retry-btn:hover {
+  background: linear-gradient(135deg, #FF9F1C 0%, #E8941A 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(255, 179, 71, 0.4);
 }
 
 .chat-footer {

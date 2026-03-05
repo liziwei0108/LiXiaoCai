@@ -2,6 +2,7 @@
 	"type": "module",
 	"scripts": {
 		"dev": "node server.js",
+		"debug": "node --inspect server.js",
 		"intime": "tsx ./testDemo/test_qwen.ts --function=start",
 		"stream": "tsx ./testDemo/test_qwen.ts --function=stream"
 	},

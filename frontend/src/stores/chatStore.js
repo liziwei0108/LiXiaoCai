@@ -3,16 +3,16 @@ import { ref, computed, watch } from 'vue'
 import { Chat } from '@ai-sdk/vue'
 
 export const useChatStore = defineStore('chat', () => {
-  const chat = new Chat({
-    id: 'testId'
+  let chat = new Chat({
+    id: 'testId',
   })
-  const input = ref('')
 
   const isLoading = computed(() => {
     return chat.status === 'submitted'
   })
 
-  const messages = computed(() => chat.messages)
+  const messages = computed(() => chat.messages || [])
+
 
   watch(() => messages.value, (newMessages) => {
     console.log('Store messages changed:', JSON.stringify(newMessages, null, 2))
@@ -20,7 +20,6 @@ export const useChatStore = defineStore('chat', () => {
 
   return {
     chat,
-    input,
     isLoading,
     messages,
   }
