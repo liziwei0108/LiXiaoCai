@@ -28,7 +28,6 @@ export async function saveMessage(conversationId, role, content, parts) {
       INSERT INTO messages (id, conversation_id, role, content, parts)
       VALUES ($1, $2, $3, $4, $5)
     `;
-    debugger
     // 生成唯一 ID
     const messageId = `msg_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
     
@@ -64,7 +63,7 @@ export async function getChatHistory(conversationId) {
 // 更新会话的更新时间
 export async function updateConversationTime(conversationId) {
   try {
-    const query = 'UPDATE conversations SET update_time = NOW() WHERE id = $1';
+    const query = 'UPDATE conversations SET updated_at = NOW() WHERE id = $1';
     await pool.query(query, [conversationId]);
     console.log('会话更新时间成功:', conversationId);
   } catch (error) {
