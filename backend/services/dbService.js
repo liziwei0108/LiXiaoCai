@@ -76,7 +76,7 @@ export async function updateConversationTime(conversationId) {
 // 检索知识库，返回纯文本供模型使用
 export async function searchNotesFromDb(queryEmbedding, limit = 3) {
   try {
-    console.log('开始检索笔记库，embedding类型:', typeof queryEmbedding, '值:', queryEmbedding);
+    console.log('开始检索笔记库');
     
     // 确保 embedding 是数组格式
     const embeddingArray = Array.isArray(queryEmbedding) 
@@ -93,7 +93,7 @@ export async function searchNotesFromDb(queryEmbedding, limit = 3) {
       LIMIT $2
     `;
     const res = await pool.query(query, [JSON.stringify(embeddingArray), limit]);
-    console.log('检索笔记库结果:', res.rows);
+    console.log('检索笔记库完成，共找到', res.rows.length, '条笔记');
     if (res.rows.length === 0) return '暂无符合要求的笔记';
     return res.rows.map(row => 
       `[${row.note_date || '无日期'}] ${row.content}`
