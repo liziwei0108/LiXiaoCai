@@ -1,5 +1,6 @@
 import pool from '../config/db.js';
 
+
 // 初始化 testId 会话
 export async function initTestConversation() {
   try {
@@ -68,6 +69,38 @@ export async function updateConversationTime(conversationId) {
     console.log('会话更新时间成功:', conversationId);
   } catch (error) {
     console.error('更新会话时间失败:', error);
+    throw error;
+  }
+}
+
+// 检索知识库，返回纯文本供模型使用
+export async function searchNotesFromDb(queryEmbedding, limit = 3) {
+  try {
+    console.log('开始检索笔记库，embedding类型:', typeof queryEmbedding, '值:', queryEmbedding);
+    
+    // 确保 embedding 是数组格式
+    const embeddingArray = Array.isArray(queryEmbedding) 
+      ? queryEmbedding 
+      : (queryEmbedding && Array.isArray(queryEmbedding.embedding)) 
+        ? queryEmbedding.embedding 
+        : [];
+    
+    
+    const query = `
+      SELECT note_date, content
+      FROM notes
+      ORDER BY embedding <=> $1::vector
+      LIMIT $2
+    `;
+    const res = await pool.query(query, [JSON.stringify(embeddingArray), limit]);
+    console.log('检索笔记库结果:', res.rows);
+    if (res.rows.length === 0) return '暂无符合要求的笔记';
+    return res.rows.map(row => 
+      `[${row.note_date || '无日期'}] ${row.content}`
+    ).join('\n');
+
+  } catch (error) {
+    console.error('检索知识库失败:', error);
     throw error;
   }
 }
