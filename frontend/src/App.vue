@@ -151,12 +151,18 @@ marked.setOptions({
 })
 
 const input = ref('')
-let chat = null
+let chat = new Chat({
+    id: 'testId',
+  })
 const scrollAnchor = ref(null)
 const initMessages = ref([])
 
 const isLoading = computed(() => {
   return chat?.status === 'submitted'
+})
+
+const messages = computed(() => {
+  return chat?.messages || []
 })
 
 
@@ -178,9 +184,6 @@ const fetchHistory = async () => {
 onMounted(async() => {
   await fetchHistory()
   
-  chat = new Chat({
-    id: 'testId',
-  })
 
   if(initMessages.value.length > 0) {
     scrollToBottom()
@@ -190,7 +193,9 @@ onMounted(async() => {
 
 
 const renderMarkdown = (text) => {
+  console.log('触发renderMarkdown', text,'开始渲染')
   if (!text || text.trim() === '') {
+    console.log('空字符串')
     return '<span class="thinking-text">思考中...</span>'
   }
   return marked.parse(text)
@@ -230,7 +235,7 @@ const scrollToBottom = () => {
 }
 
 watch(
-  [() => chat?.messages, () => chat?.status],
+  [messages, () => chat?.status],
   scrollToBottom,
   { deep: true }
 )
