@@ -26,14 +26,21 @@ async function generateEmbedding(text) {
   return embedding;
 }
 
-async function insertNote(noteDate, noteType, relatedSymbols, content, embedding) {
+async function insertNote(inode, noteDate, noteType, relatedSymbols, content, embedding) {
   const query = `
-    INSERT INTO notes (note_date, note_type, related_symbols, content, embedding)
-    VALUES ($1, $2, $3, $4, $5)
+    INSERT INTO notes (id, note_date, note_type, related_symbols, content, embedding)
+    VALUES ($1, $2, $3, $4, $5, $6)
+    ON CONFLICT (id) DO UPDATE
+    SET note_date = EXCLUDED.note_date,
+        note_type = EXCLUDED.note_type,
+        related_symbols = EXCLUDED.related_symbols,
+        content = EXCLUDED.content,
+        embedding = EXCLUDED.embedding
     RETURNING id
   `;
 
   const values = [
+    String(inode),
     noteDate || null,
     noteType || null,
     relatedSymbols || null,
@@ -61,6 +68,10 @@ async function processMarkdownFile(filePath) {
     let noteType = null;
     let relatedSymbols = null;
 
+    const fileStats = fs.statSync(filePath);
+    const inode = fileStats.ino;
+    noteDate = fileStats.mtime.toISOString().split('T')[0];
+
     const lines = content.split('\n');
     for (const line of lines) {
       const trimmedLine = line.trim();
@@ -71,9 +82,9 @@ async function processMarkdownFile(filePath) {
     }
 
     const embedding = await generateEmbedding(content);
-    const id = await insertNote(noteDate, noteType, relatedSymbols, content, embedding);
+    const id = await insertNote(inode, noteDate, noteType, relatedSymbols, content, embedding);
 
-    console.log(`✓ 笔记已插入: ID=${id}, 文件=${filename}`);
+    console.log(`✓ 笔记已处理: ID=${id}, inode=${inode}, 文件=${filename}, 日期=${noteDate}`);
     return true;
   } catch (error) {
     console.error(`✗ 处理文件失败 ${filePath}:`, error.message);
