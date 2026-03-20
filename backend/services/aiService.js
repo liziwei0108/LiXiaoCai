@@ -40,14 +40,12 @@ export async function streamChatResponse(messages, id, res) {
   console.log('发送的messages', JSON.stringify(modelMessages));
 
   const result = streamText({
-    model: openai.chat(config.ai.model),
+    model: openai.responses(config.ai.model),
     messages: modelMessages,
-    stopWhen: stepCountIs(5), // 允许最多5步，将工具生成结果返回给模型，确保工具结果能被再次使用
+    stopWhen: stepCountIs(10),
     tools: {
-      // 定义一个名为 searchNotes 的工具，用于在用户查询相关问题时检索笔记中文档
       searchNotes: tool({
         description: config.searchNotesPrompt,
-        // 定义工具的输入参数
         inputSchema: z.object({
           query: z
             .string()
@@ -59,14 +57,25 @@ export async function streamChatResponse(messages, id, res) {
           return results;
         },
       }),
+      web_search: openai.tools.webSearch({
+        searchContextSize: 'high',
+        userLocation: {
+          type: 'approximate',
+          city: '上海',
+          region: '中国',
+        },
+      }),
+    },
+    onStepFinish: (event) => {
+      console.log('步骤完成:', event.stepNumber);
+      console.log('工具调用结果:', JSON.stringify(event.content));
     },
     onFinish: async (event) => {
-      // event.text 是完整回复文本
-      // 注意：如果模型返回的是多 part（如工具调用），可能需要更复杂的处理
+      console.log('当前回答完成');
+      
       const assistantParts = [{ type: 'text', text: event.text }];
       
       try {
-        // 存储 AI 响应消息
         await saveMessage(
           'testId',
           'assistant',
@@ -74,17 +83,17 @@ export async function streamChatResponse(messages, id, res) {
           assistantParts
         );
         
-        // 更新会话的更新时间
         await updateConversationTime('testId');
         
         console.log('AI 响应存储成功并更新会话时间');
       } catch (error) {
         console.error('存储 AI 响应失败:', error);
       }
+    },
+    onError: (error) => {
+      console.error('流式响应错误:', error);
     }
   });
 
-  result.pipeUIMessageStreamToResponse(res)
-
-  
+  return result.pipeUIMessageStreamToResponse(res)
 }
