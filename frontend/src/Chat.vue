@@ -21,7 +21,7 @@
     <main class="chat-main">
       <div class="messages-wrapper">
 
-        <div v-if="initMessages.length === 0 && chat?.messages.length === 0" class="welcome-section">
+        <div v-if="initMessages.length === 0 && messages.length === 0" class="welcome-section">
           <div class="welcome-avatar">
             <img src="/yuanbao.png" alt="圆宝" class="avatar-img" />
           </div>
@@ -43,7 +43,6 @@
           </div>
         </div>
 
-
         <div v-if="initMessages.length > 0">
           <div v-for="message in initMessages" :key="message.id" class="message-item" :class="message.role">
             <div class="message-avatar" :class="message.role">
@@ -58,21 +57,19 @@
           </div>
         </div>
 
-        <div v-if="chat && chat.messages.length > 0">
-          <div v-for="message in chat.messages" :key="message.id" class="message-item" :class="message.role">
-            <div class="message-avatar" :class="message.role">
-              <img v-if="message.role === 'user'" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='24' r='14' fill='%23FFE066'/%3E%3Cellipse cx='32' cy='44' rx='18' ry='14' fill='%23FFE066'/%3E%3Cellipse cx='32' cy='42' rx='14' ry='10' fill='%23FFF3B0'/%3E%3Ccircle cx='26' cy='22' r='3' fill='%231a1a1a'/%3E%3Ccircle cx='38' cy='22' r='3' fill='%231a1a1a'/%3E%3Ccircle cx='27' cy='21' r='1' fill='%23fff'/%3E%3Ccircle cx='39' cy='21' r='1' fill='%23fff'/%3E%3Cpath d='M30 28H34' stroke='%231a1a1a' stroke-width='2' stroke-linecap='round'/%3E%3Cellipse cx='32' cy='26' rx='2' ry='1.5' fill='%23FF9999'/%3E%3C/svg%3E" alt="用户" class="avatar-img" />
-              <img v-else src="/yuanbao.png" alt="圆宝" class="avatar-img" />
-            </div>
-            <div class="message-content">
-              <div v-for="part in message.parts" :key="part.type">
-                <div v-if="part.type === 'text' && part.text" class="message-text" v-html="renderMarkdown(part.text)"></div>
-              </div>
+        <div v-for="message in messages" :key="message.id" class="message-item" :class="message.role">
+          <div class="message-avatar" :class="message.role">
+            <img v-if="message.role === 'user'" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='24' r='14' fill='%23FFE066'/%3E%3Cellipse cx='32' cy='44' rx='18' ry='14' fill='%23FFE066'/%3E%3Cellipse cx='32' cy='42' rx='14' ry='10' fill='%23FFF3B0'/%3E%3Ccircle cx='26' cy='22' r='3' fill='%231a1a1a'/%3E%3Ccircle cx='38' cy='22' r='3' fill='%231a1a1a'/%3E%3Ccircle cx='27' cy='21' r='1' fill='%23fff'/%3E%3Ccircle cx='39' cy='21' r='1' fill='%23fff'/%3E%3Cpath d='M30 28H34' stroke='%231a1a1a' stroke-width='2' stroke-linecap='round'/%3E%3Cellipse cx='32' cy='26' rx='2' ry='1.5' fill='%23FF9999'/%3E%3C/svg%3E" alt="用户" class="avatar-img" />
+            <img v-else src="/yuanbao.png" alt="圆宝" class="avatar-img" />
+          </div>
+          <div class="message-content">
+            <div v-for="part in message.parts" :key="part.type">
+              <div v-if="part.type === 'text' && part.text" class="message-text" v-html="renderMarkdown(part.text)"></div>
             </div>
           </div>
         </div>
 
-        <div v-if="isLoading" class="message-item assistant loading">
+        <div v-if="isLoading && !isStreaming" class="message-item assistant loading">
           <div class="message-avatar assistant loading-avatar">
             <img src="/yuanbao.png" alt="圆宝" class="avatar-img" />
           </div>
@@ -134,8 +131,7 @@
 </template>
 
 <script setup>
-import { watch, ref, nextTick, onMounted } from 'vue'
-import { Chat } from '@ai-sdk/vue'
+import { watch, ref, nextTick, onMounted, computed } from 'vue'
 import { marked } from 'marked'
 import hljs from 'highlight.js'
 
@@ -151,20 +147,12 @@ marked.setOptions({
 })
 
 const input = ref('')
-let chat = new Chat({
-    id: 'testId',
-  })
+const messages = ref([])
 const scrollAnchor = ref(null)
 const initMessages = ref([])
-
-const isLoading = computed(() => {
-  return chat?.status === 'submitted'
-})
-
-const messages = computed(() => {
-  return chat?.messages || []
-})
-
+const isLoading = ref(false)
+const isStreaming = ref(false)
+let eventSource = null
 
 const fetchHistory = async () => {
   try {
@@ -180,42 +168,116 @@ const fetchHistory = async () => {
   }
 }
 
+const sendMessage = async (text) => {
+  if (!text.trim() || isLoading.value) return
 
-onMounted(async() => {
-  await fetchHistory()
-  
-
-  if(initMessages.value.length > 0) {
-    scrollToBottom()
+  const userMessage = {
+    id: `msg_${Date.now()}`,
+    role: 'user',
+    content: text,
+    parts: [{ type: 'text', text: text }]
   }
 
-})
+  messages.value = [...messages.value, userMessage]
+  input.value = ''
+  isLoading.value = true
 
+  try {
+    const response = await fetch('/api/chat', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        messages: [{ role: 'user', content: text }],
+        id: 'testId'
+      })
+    })
 
-const renderMarkdown = (text) => {
-  console.log('触发renderMarkdown', text,'开始渲染')
-  if (!text || text.trim() === '') {
-    console.log('空字符串')
-    return '<span class="thinking-text">思考中...</span>'
+    if (!response.ok) {
+      throw new Error('请求失败')
+    }
+
+    if (eventSource) {
+      eventSource.close()
+    }
+
+    const reader = response.body.getReader()
+    const decoder = new TextDecoder()
+    
+    // 不预先添加空白消息，等开始流式输出时再添加
+    let assistantMessageAdded = false
+
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+
+      const chunk = decoder.decode(value, { stream: true })
+      const lines = chunk.split('\n')
+
+      for (const line of lines) {
+        if (line.startsWith('data: ')) {
+          try {
+            const data = JSON.parse(line.slice(6))
+            
+            if (data.type === 'text') {
+              // 标记开始流式输出
+              if (!isStreaming.value) {
+                isStreaming.value = true
+                // 第一次收到文本时，添加助手消息
+                if (!assistantMessageAdded) {
+                  const assistantMessage = {
+                    id: `msg_${Date.now()}_assistant`,
+                    role: 'assistant',
+                    content: data.text,
+                    parts: [{ type: 'text', text: data.text }]
+                  }
+                  messages.value = [...messages.value, assistantMessage]
+                  assistantMessageAdded = true
+                }
+              } else {
+                // 实时更新消息内容
+                const lastMessage = messages.value[messages.value.length - 1]
+                if (lastMessage && lastMessage.role === 'assistant') {
+                  lastMessage.content += data.text
+                  lastMessage.parts[0].text += data.text
+                }
+              }
+            } else if (data.type === 'done') {
+              // 完成时更新最终内容
+              const lastMessage = messages.value[messages.value.length - 1]
+              if (lastMessage && lastMessage.role === 'assistant') {
+                lastMessage.content = data.text
+                lastMessage.parts[0].text = data.text
+              }
+            }
+          } catch (e) {
+            console.error('解析数据失败:', e)
+          }
+        }
+      }
+    }
+  } catch (error) {
+    console.error('发送消息失败:', error)
+  } finally {
+    isLoading.value = false
+    isStreaming.value = false
   }
-  return marked.parse(text)
 }
 
 const handleSubmit = (e) => {
   e?.preventDefault()
   if (input.value.trim() && !isLoading.value) {
-    chat?.sendMessage({ text: input.value })
+    sendMessage(input.value)
     input.value = ''
   }
 }
 
 const handleKeydown = (e) => {
   if (e.ctrlKey && e.key === 'Enter') {
-    // Ctrl+Enter 换行
     e.preventDefault()
     input.value += '\n'
   } else if (e.key === 'Enter' && !e.shiftKey) {
-    // Enter 键提交
     e.preventDefault()
     handleSubmit(e)
   }
@@ -235,10 +297,25 @@ const scrollToBottom = () => {
 }
 
 watch(
-  [messages, () => chat?.status],
+  [messages, () => isLoading.value],
   scrollToBottom,
   { deep: true }
 )
+
+const renderMarkdown = (text) => {
+  if (!text || text.trim() === '') {
+    return '<span class="thinking-text">思考中...</span>'
+  }
+  return marked.parse(text)
+}
+
+onMounted(async() => {
+  await fetchHistory()
+
+  if(initMessages.value.length > 0) {
+    scrollToBottom()
+  }
+})
 
 </script>
 
@@ -552,7 +629,7 @@ watch(
 }
 
 .message-content {
-  max-width: 75%;
+  max-width: 85%;
   padding: 16px;
   border-radius: 24px;
   line-height: 1.6;
@@ -797,146 +874,57 @@ watch(
   color: var(--text-tertiary);
 }
 
-.chat-input:disabled {
-  opacity: 0.6;
+.chat-input:focus {
+  outline: none;
 }
 
 .send-btn {
-  width: 44px;
-  height: 44px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, #FFB347 0%, #FF9F1C 100%);
+  background: none;
   border: none;
-  color: white;
   cursor: pointer;
+  padding: 8px;
+  border-radius: 50%;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  box-shadow: 0 4px 12px rgba(255, 179, 71, 0.3);
-  margin-top: -4px;
+  color: var(--accent-color);
 }
 
 .send-btn:hover:not(:disabled) {
-  background: linear-gradient(135deg, #FF9F1C 0%, #E8941A 100%);
-  transform: scale(1.08);
-  box-shadow: 0 6px 20px rgba(255, 179, 71, 0.4);
+  background: linear-gradient(135deg, #FFF8E7 0%, #FFEFC7 100%);
+  transform: scale(1.1);
 }
 
 .send-btn:disabled {
-  opacity: 0.5;
+  color: var(--text-tertiary);
   cursor: not-allowed;
-  box-shadow: none;
 }
 
-.send-btn svg {
-  width: 18px;
-  height: 18px;
+.send-btn.sending {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 
 .btn-loader {
-  width: 18px;
-  height: 18px;
-  border: 2px solid rgba(255, 255, 255, 0.3);
-  border-top-color: white;
+  width: 20px;
+  height: 20px;
+  border: 3px solid rgba(255, 179, 71, 0.3);
+  border-top-color: var(--accent-color);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
 }
 
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
-
 .disclaimer {
   text-align: center;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text-tertiary);
   margin: 12px 0 0;
+  padding: 0 20px;
 }
 
-@media (max-width: 768px) {
-  .header-content {
-    padding: 10px 16px;
-  }
-
-  .logo-avatar {
-    width: 40px;
-    height: 40px;
-  }
-
-  .logo-text {
-    font-size: 18px;
-  }
-
-  .logo-subtext {
-    font-size: 11px;
-  }
-
-  .header-status {
-    padding: 6px 12px;
-  }
-
-  .status-text {
-    font-size: 12px;
-  }
-
-  .messages-wrapper {
-    padding: 16px 12px 140px;
-  }
-
-  .message-content {
-    max-width: 82%;
-    padding: 14px 16px;
-  }
-
-  .message-avatar {
-    width: 38px;
-    height: 38px;
-  }
-
-  .message-avatar svg, .message-avatar .avatar-img {
-    width: 30px;
-    height: 30px;
-  }
-
-  .welcome-section {
-    padding: 30px 16px;
-  }
-
-  .welcome-avatar {
-    width: 90px;
-    height: 90px;
-  }
-
-  .welcome-title {
-    font-size: 22px;
-  }
-
-  .welcome-desc {
-    font-size: 14px;
-  }
-
-  .quick-btn {
-    padding: 10px 16px;
-    font-size: 13px;
-  }
-
-  .chat-footer {
-    padding: 10px 12px 20px;
-  }
-
-  .input-wrapper {
-    padding: 6px 6px 6px 16px;
-    border-radius: 24px;
-  }
-
-  .send-btn {
-    width: 40px;
-    height: 40px;
-  }
-
-  .decoration-left, .decoration-right {
-    display: none;
-  }
-}
 </style>

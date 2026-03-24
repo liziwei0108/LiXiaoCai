@@ -7,8 +7,6 @@
 		"stream": "tsx ./testDemo/test_qwen.ts --function=stream"
 	},
 	"dependencies": {
-		"@ai-sdk/openai": "^3.0.36",
-		"ai": "^6.0.103",
 		"axios": "^1.13.5",
 		"cors": "^2.8.6",
 		"dotenv": "^17.3.1",

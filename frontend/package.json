@@ -9,8 +9,6 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@ai-sdk/vue": "^3.0.103",
-    "ai": "^6.0.103",
     "highlight.js": "^11.11.1",
     "marked": "^17.0.3",
     "pinia": "^3.0.4",

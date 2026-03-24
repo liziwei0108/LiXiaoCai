@@ -6,7 +6,11 @@ export async function handleChat(req, res) {
   const { messages, id } = req.body;
 
   try {
-    // 存储用户消息
+    if (!id) {
+      res.status(400).json({ error: 'id 不能为空' });
+      return;
+    }
+
     if (messages && messages.length > 0) {
       const lastUserMessage = messages[messages.length - 1];
       if (lastUserMessage.role === 'user') {
@@ -19,9 +23,9 @@ export async function handleChat(req, res) {
       }
     }
 
-    // 处理 AI 响应并存储
     await streamChatResponse(messages, id, res);
-    console.log('----------响应已通过 pipe 发送----------');
+    
+    console.log('----------流式响应完成----------');
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: '调用 AI 失败' });
@@ -34,7 +38,6 @@ export async function handleGetHistory(req, res) {
   try {
     const messages = await getChatHistory('testId');
     
-    // 转换消息格式以符合前端需求
     const formattedMessages = messages.map(msg => ({
       id: msg.id,
       role: msg.role,
