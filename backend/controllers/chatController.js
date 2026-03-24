@@ -28,7 +28,10 @@ export async function handleChat(req, res) {
     console.log('----------流式响应完成----------');
   } catch (error) {
     console.error(error);
-    res.status(500).json({ error: '调用 AI 失败' });
+    // 如果响应头还未发送，才返回 JSON 错误
+    if (!res.headersSent) {
+      res.status(500).json({ error: '调用 AI 失败' });
+    }
   }
 }
 
