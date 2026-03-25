@@ -4,10 +4,10 @@
       <div class="header-content">
         <div class="logo">
           <div class="logo-avatar">
-            <img src="/yuanbao.png" alt="圆宝" class="avatar-img" />
+            <img src="/yuanbao.png" alt="财咪" class="avatar-img" />
           </div>
           <div class="logo-text-wrap">
-            <span class="logo-text">圆宝</span>
+            <span class="logo-text">财咪</span>
             <span class="logo-subtext">你的理财小助手</span>
           </div>
         </div>
@@ -23,9 +23,9 @@
 
         <div v-if="initMessages.length === 0 && messages.length === 0" class="welcome-section">
           <div class="welcome-avatar">
-            <img src="/yuanbao.png" alt="圆宝" class="avatar-img" />
+            <img src="/yuanbao.png" alt="财咪" class="avatar-img" />
           </div>
-          <h2 class="welcome-title">你好呀！我是圆宝~ 🐱</h2>
+          <h2 class="welcome-title">你好呀！我是财咪~ 🐱</h2>
           <p class="welcome-desc">一只懂理财的金渐层，让我帮你管理财富吧！</p>
           <div class="quick-questions">
             <button class="quick-btn" @click="quickAsk('如何开始理财？')">
@@ -47,7 +47,7 @@
           <div v-for="message in initMessages" :key="message.id" class="message-item" :class="message.role">
             <!-- 只显示AI的头像，用户不显示头像 -->
             <div v-if="message.role === 'assistant'" class="message-avatar" :class="message.role">
-              <img src="/yuanbao.png" alt="圆宝" class="avatar-img" />
+              <img src="/yuanbao.png" alt="财咪" class="avatar-img" />
             </div>
             <div class="message-content">
               <div v-for="part in message.parts" :key="part.type">
@@ -60,7 +60,7 @@
         <div v-for="message in messages" :key="message.id" class="message-item" :class="message.role">
           <!-- 只显示AI的头像，用户不显示头像 -->
           <div v-if="message.role === 'assistant'" class="message-avatar" :class="message.role">
-            <img src="/yuanbao.png" alt="圆宝" class="avatar-img" />
+            <img src="/yuanbao.png" alt="财咪" class="avatar-img" />
           </div>
           <div class="message-content">
             <!-- 思考过程 -->
@@ -81,7 +81,7 @@
 
         <div v-if="isLoading && !isStreaming" class="message-item assistant loading">
           <div class="message-avatar assistant loading-avatar">
-            <img src="/yuanbao.png" alt="圆宝" class="avatar-img" />
+            <img src="/yuanbao.png" alt="财咪" class="avatar-img" />
           </div>
           <div class="message-content loading-content">
             <div class="loading-bubbles">
@@ -90,7 +90,7 @@
               <span class="bubble"></span>
             </div>
             <div class="loading-text-wrap">
-              <span class="loading-text">圆宝正在思考...</span>
+              <span class="loading-text">正在思考...</span>
               <span class="loading-cat">🐱</span>
             </div>
           </div>
@@ -105,7 +105,7 @@
         <div class="input-wrapper">
           <textarea
             v-model="input"
-            placeholder="告诉圆宝你想了解什么..."
+            placeholder="告诉我你想了解什么..."
             :disabled="isLoading"
             autocomplete="off"
             class="chat-input"
