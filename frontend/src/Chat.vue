@@ -26,7 +26,7 @@
             <img src="/yuanbao.png" alt="财咪" class="avatar-img" />
           </div>
           <h2 class="welcome-title">你好呀！我是财咪~ 🐱</h2>
-          <p class="welcome-desc">一只懂理财的金渐层，让我帮你管理财富吧！</p>
+          <p class="welcome-desc">一只懂理财的小猫咪，让我帮你管理财富吧！</p>
           <div class="quick-questions">
             <button class="quick-btn" @click="quickAsk('如何开始理财？')">
               <span class="btn-icon">💰</span>如何开始理财？
@@ -498,15 +498,8 @@ onMounted(async() => {
   width: 48px;
   height: 48px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #FFE066 0%, #FFB347 100%);
-  box-shadow: 0 4px 12px rgba(255, 179, 71, 0.3);
+  background: transparent;
   overflow: hidden;
-  animation: bounce 2s ease-in-out infinite;
-}
-
-@keyframes bounce {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-3px); }
 }
 
 .logo-avatar svg, .logo-avatar .avatar-img {
