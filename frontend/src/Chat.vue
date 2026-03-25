@@ -45,9 +45,9 @@
 
         <div v-if="initMessages.length > 0">
           <div v-for="message in initMessages" :key="message.id" class="message-item" :class="message.role">
-            <div class="message-avatar" :class="message.role">
-              <img v-if="message.role === 'user'" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='24' r='14' fill='%23FFE066'/%3E%3Cellipse cx='32' cy='44' rx='18' ry='14' fill='%23FFE066'/%3E%3Cellipse cx='32' cy='42' rx='14' ry='10' fill='%23FFF3B0'/%3E%3Ccircle cx='26' cy='22' r='3' fill='%231a1a1a'/%3E%3Ccircle cx='38' cy='22' r='3' fill='%231a1a1a'/%3E%3Ccircle cx='27' cy='21' r='1' fill='%23fff'/%3E%3Ccircle cx='39' cy='21' r='1' fill='%23fff'/%3E%3Cpath d='M30 28H34' stroke='%231a1a1a' stroke-width='2' stroke-linecap='round'/%3E%3Cellipse cx='32' cy='26' rx='2' ry='1.5' fill='%23FF9999'/%3E%3C/svg%3E" alt="用户" class="avatar-img" />
-              <img v-else src="/yuanbao.png" alt="圆宝" class="avatar-img" />
+            <!-- 只显示AI的头像，用户不显示头像 -->
+            <div v-if="message.role === 'assistant'" class="message-avatar" :class="message.role">
+              <img src="/yuanbao.png" alt="圆宝" class="avatar-img" />
             </div>
             <div class="message-content">
               <div v-for="part in message.parts" :key="part.type">
@@ -58,11 +58,21 @@
         </div>
 
         <div v-for="message in messages" :key="message.id" class="message-item" :class="message.role">
-          <div class="message-avatar" :class="message.role">
-            <img v-if="message.role === 'user'" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='24' r='14' fill='%23FFE066'/%3E%3Cellipse cx='32' cy='44' rx='18' ry='14' fill='%23FFE066'/%3E%3Cellipse cx='32' cy='42' rx='14' ry='10' fill='%23FFF3B0'/%3E%3Ccircle cx='26' cy='22' r='3' fill='%231a1a1a'/%3E%3Ccircle cx='38' cy='22' r='3' fill='%231a1a1a'/%3E%3Ccircle cx='27' cy='21' r='1' fill='%23fff'/%3E%3Ccircle cx='39' cy='21' r='1' fill='%23fff'/%3E%3Cpath d='M30 28H34' stroke='%231a1a1a' stroke-width='2' stroke-linecap='round'/%3E%3Cellipse cx='32' cy='26' rx='2' ry='1.5' fill='%23FF9999'/%3E%3C/svg%3E" alt="用户" class="avatar-img" />
-            <img v-else src="/yuanbao.png" alt="圆宝" class="avatar-img" />
+          <!-- 只显示AI的头像，用户不显示头像 -->
+          <div v-if="message.role === 'assistant'" class="message-avatar" :class="message.role">
+            <img src="/yuanbao.png" alt="圆宝" class="avatar-img" />
           </div>
           <div class="message-content">
+            <!-- 思考过程 -->
+            <div v-if="message.reasoning || message.parts?.find(p => p.type === 'reasoning')?.text" class="reasoning-section">
+              <div class="reasoning-header" @click="toggleReasoning(message.id)">
+                <span class="reasoning-icon">🤔</span>
+                <span class="reasoning-title">思考过程</span>
+                <span class="reasoning-toggle">{{ isReasoningExpanded(message.id) ? '▼' : '▶' }}</span>
+              </div>
+              <div v-show="isReasoningExpanded(message.id)" class="reasoning-content" v-html="renderMarkdown(message.reasoning || message.parts?.find(p => p.type === 'reasoning')?.text)"></div>
+            </div>
+            <!-- 正式回答 -->
             <div v-for="part in message.parts" :key="part.type">
               <div v-if="part.type === 'text' && part.text" class="message-text" v-html="renderMarkdown(part.text)"></div>
             </div>
@@ -152,7 +162,28 @@ const scrollAnchor = ref(null)
 const initMessages = ref([])
 const isLoading = ref(false)
 const isStreaming = ref(false)
+const expandedReasoning = ref(new Set()) // 存储展开的思考过程消息ID
+const reasoningCompleted = ref(new Set()) // 存储思考过程已完成的消息ID
 let eventSource = null
+
+// 切换思考过程的展开/折叠
+const toggleReasoning = (messageId) => {
+  if (expandedReasoning.value.has(messageId)) {
+    expandedReasoning.value.delete(messageId)
+  } else {
+    expandedReasoning.value.add(messageId)
+  }
+}
+
+// 检查思考过程是否展开
+const isReasoningExpanded = (messageId) => {
+  // 如果思考过程已完成且用户未手动切换，则默认折叠
+  // 如果思考过程未完成，则默认展开
+  if (reasoningCompleted.value.has(messageId)) {
+    return expandedReasoning.value.has(messageId)
+  }
+  return !expandedReasoning.value.has(messageId)
+}
 
 const fetchHistory = async () => {
   try {
@@ -230,7 +261,11 @@ const sendMessage = async (text) => {
                     id: `msg_${Date.now()}_assistant`,
                     role: 'assistant',
                     content: data.text,
-                    parts: [{ type: 'text', text: data.text }]
+                    reasoning: '',
+                    parts: [
+                      { type: 'reasoning', text: '' },
+                      { type: 'text', text: data.text }
+                    ]
                   }
                   messages.value = [...messages.value, assistantMessage]
                   assistantMessageAdded = true
@@ -240,7 +275,40 @@ const sendMessage = async (text) => {
                 const lastMessage = messages.value[messages.value.length - 1]
                 if (lastMessage && lastMessage.role === 'assistant') {
                   lastMessage.content += data.text
-                  lastMessage.parts[0].text += data.text
+                  // 找到 text part 并更新
+                  const textPart = lastMessage.parts.find(p => p.type === 'text')
+                  if (textPart) {
+                    textPart.text += data.text
+                  }
+                }
+              }
+            } else if (data.type === 'reasoning') {
+              // 处理思考过程
+              if (!isStreaming.value) {
+                isStreaming.value = true
+                if (!assistantMessageAdded) {
+                  const assistantMessage = {
+                    id: `msg_${Date.now()}_assistant`,
+                    role: 'assistant',
+                    content: '',
+                    reasoning: data.text,
+                    parts: [
+                      { type: 'reasoning', text: data.text },
+                      { type: 'text', text: '' }
+                    ]
+                  }
+                  messages.value = [...messages.value, assistantMessage]
+                  assistantMessageAdded = true
+                }
+              } else {
+                const lastMessage = messages.value[messages.value.length - 1]
+                if (lastMessage && lastMessage.role === 'assistant') {
+                  lastMessage.reasoning = (lastMessage.reasoning || '') + data.text
+                  // 找到 reasoning part 并更新
+                  const reasoningPart = lastMessage.parts.find(p => p.type === 'reasoning')
+                  if (reasoningPart) {
+                    reasoningPart.text = (reasoningPart.text || '') + data.text
+                  }
                 }
               }
             } else if (data.type === 'done') {
@@ -248,7 +316,18 @@ const sendMessage = async (text) => {
               const lastMessage = messages.value[messages.value.length - 1]
               if (lastMessage && lastMessage.role === 'assistant') {
                 lastMessage.content = data.text
-                lastMessage.parts[0].text = data.text
+                lastMessage.reasoning = data.reasoning || lastMessage.reasoning
+                // 更新 parts
+                const reasoningPart = lastMessage.parts.find(p => p.type === 'reasoning')
+                const textPart = lastMessage.parts.find(p => p.type === 'text')
+                if (reasoningPart) {
+                  reasoningPart.text = data.reasoning || reasoningPart.text
+                }
+                if (textPart) {
+                  textPart.text = data.text
+                }
+                // 标记思考过程已完成
+                reasoningCompleted.value.add(lastMessage.id)
               }
             }
           } catch (e) {
@@ -659,6 +738,74 @@ onMounted(async() => {
   color: var(--text-tertiary);
   font-style: italic;
   opacity: 0.7;
+}
+
+/* 思考过程样式 */
+.reasoning-section {
+  background: linear-gradient(135deg, #FAFAFA 0%, #F5F5F5 100%);
+  border-radius: 12px;
+  padding: 10px 14px;
+  margin-bottom: 16px;
+  position: relative;
+}
+
+.reasoning-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  user-select: none;
+  padding: 4px 0;
+}
+
+.reasoning-header:hover {
+  opacity: 0.8;
+}
+
+.reasoning-icon {
+  font-size: 14px;
+}
+
+.reasoning-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #9E9E9E;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  flex: 1;
+}
+
+.reasoning-toggle {
+  font-size: 12px;
+  color: #BDBDBD;
+  transition: transform 0.2s ease;
+}
+
+.reasoning-content {
+  font-size: 14px;
+  color: #757575;
+  line-height: 1.6;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed #E0E0E0;
+}
+
+.reasoning-content :deep(p) {
+  margin: 0 0 8px;
+}
+
+.reasoning-content :deep(p:last-child) {
+  margin-bottom: 0;
+}
+
+.reasoning-content :deep(ul),
+.reasoning-content :deep(ol) {
+  margin: 8px 0;
+  padding-left: 20px;
+}
+
+.reasoning-content :deep(li) {
+  margin: 4px 0;
 }
 
 .message-item.assistant .message-text :deep(p) {

@@ -84,6 +84,33 @@ function sendTextChunk(res, text) {
   res.write(`data: ${JSON.stringify(data)}\n\n`);
 }
 
+// 过滤思考过程中的工具名称和技术术语
+function filterReasoningText(text) {
+  if (!text) return text;
+  
+  // 替换工具名称
+  let filtered = text
+    .replace(/searchNotes/g, '笔记检索')
+    .replace(/web_search/g, '实时搜索')
+    .replace(/function_call/g, '功能调用')
+    .replace(/工具/g, '功能');
+  
+  return filtered;
+}
+
+// 发送思考过程到客户端
+function sendReasoningChunk(res, text) {
+  const filteredText = filterReasoningText(text);
+  const data = {
+    type: 'reasoning',
+    text: filteredText,
+    id: `msg_${Date.now()}`,
+    role: 'assistant',
+    parts: [{ type: 'reasoning', text: filteredText }],
+  };
+  res.write(`data: ${JSON.stringify(data)}\n\n`);
+}
+
 // 发送工具调用信息到客户端
 function sendToolCall(res, functionCall, result) {
   const data = {
@@ -97,13 +124,18 @@ function sendToolCall(res, functionCall, result) {
 }
 
 // 发送完成信号
-function sendDone(res, finalText) {
+function sendDone(res, finalText, reasoningText = '') {
+  const filteredReasoning = filterReasoningText(reasoningText);
   const data = {
     type: 'done',
     text: finalText,
+    reasoning: filteredReasoning,
     id: `msg_${Date.now()}`,
     role: 'assistant',
-    parts: [{ type: 'text', text: finalText }],
+    parts: [
+      { type: 'reasoning', text: filteredReasoning },
+      { type: 'text', text: finalText }
+    ],
   };
   res.write(`data: ${JSON.stringify(data)}\n\n`);
   res.end();
@@ -126,12 +158,13 @@ async function streamResponse(conversation, res) {
   });
 
   let fullText = '';
+  let reasoningText = '';
   const functionCalls = [];
   let currentFunctionCall = null;
 
   for await (const event of response) {
     // 打印所有事件类型，便于调试
-    if (event.type !== 'response.output_text.delta') {
+    if (event.type !== 'response.output_text.delta' && !event.type.includes('reasoning')) {
       console.log('收到事件:', event.type, JSON.stringify(event).substring(0, 200));
     }
 
@@ -140,6 +173,12 @@ async function streamResponse(conversation, res) {
       case 'response.output_text.delta':
         sendTextChunk(res, event.delta);
         fullText += event.delta;
+        break;
+
+      // 思考过程增量输出
+      case 'response.reasoning_summary_text.delta':
+        sendReasoningChunk(res, event.delta);
+        reasoningText += event.delta;
         break;
 
       // 函数调用开始（自定义函数）
@@ -223,7 +262,7 @@ async function streamResponse(conversation, res) {
     }
   }
 
-  return { fullText, functionCalls };
+  return { fullText, reasoningText, functionCalls };
 }
 
 // 主函数：处理流式聊天响应
@@ -241,6 +280,7 @@ export async function streamChatResponse(messages, id, res) {
 
   const conversation = [...messages];
   let finalResponseText = '';
+  let finalReasoningText = '';
 
   try {
     // 进入工具调用循环
@@ -248,8 +288,9 @@ export async function streamChatResponse(messages, id, res) {
       console.log(`发送请求，conversation长度: ${conversation.length}`);
 
       // 获取流式响应
-      const { fullText, functionCalls } = await streamResponse(conversation, res);
+      const { fullText, reasoningText, functionCalls } = await streamResponse(conversation, res);
       finalResponseText += fullText;
+      finalReasoningText += reasoningText;
 
       // 如果没有工具调用，结束循环
       if (functionCalls.length === 0) {
@@ -287,14 +328,18 @@ export async function streamChatResponse(messages, id, res) {
     }
 
     // 发送完成信号
-    sendDone(res, finalResponseText);
+    sendDone(res, finalResponseText, finalReasoningText);
 
     console.log('当前回答完成');
     console.log('最终响应文本:', finalResponseText);
+    console.log('最终思考过程:', finalReasoningText);
 
     // 保存 AI 响应到数据库
     try {
-      const assistantParts = [{ type: 'text', text: finalResponseText }];
+      const assistantParts = [
+        { type: 'reasoning', text: finalReasoningText },
+        { type: 'text', text: finalResponseText }
+      ];
       await saveMessage('testId', 'assistant', finalResponseText, assistantParts);
       await updateConversationTime('testId');
       console.log('AI 响应存储成功并更新会话时间');
