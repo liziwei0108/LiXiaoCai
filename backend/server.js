@@ -3,7 +3,6 @@ import express from 'express';
 import cors from 'cors';
 import config from './config/index.js';
 import chatRoutes from './routes/chatRoutes.js';
-import { initTestConversation } from './services/dbService.js';
 
 const app = express();
 const port = config.server.port;
@@ -13,12 +12,9 @@ app.use(express.json());
 
 app.use('/api', chatRoutes);
 
-// 启动服务器并初始化 testId 会话
+// 启动服务器
 async function startServer() {
   try {
-    // 初始化 testId 会话
-    await initTestConversation();
-    
     // 启动服务器
     app.listen(port, () => {
       console.log(`Server running at http://localhost:${port}`);

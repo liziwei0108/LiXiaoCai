@@ -1,13 +1,13 @@
 import { streamChatResponse } from '../services/aiService.js';
-import { saveMessage, getChatHistory } from '../services/dbService.js';
+import { saveMessage, getChatHistory, getAllConversations, createConversation, deleteConversation, updateConversationTime } from '../services/dbService.js';
 
 export async function handleChat(req, res) {
   console.log('----------接收请求，开始处理-----------');
-  const { messages, id } = req.body;
+  const { messages, conversationId } = req.body;
 
   try {
-    if (!id) {
-      res.status(400).json({ error: 'id 不能为空' });
+    if (!conversationId) {
+      res.status(400).json({ error: 'conversationId 不能为空' });
       return;
     }
 
@@ -15,7 +15,7 @@ export async function handleChat(req, res) {
       const lastUserMessage = messages[messages.length - 1];
       if (lastUserMessage.role === 'user') {
         await saveMessage(
-          'testId',
+          conversationId,
           lastUserMessage.role,
           lastUserMessage.content || '',
           lastUserMessage.parts || [{ type: 'text', text: lastUserMessage.content || '' }]
@@ -23,7 +23,10 @@ export async function handleChat(req, res) {
       }
     }
 
-    await streamChatResponse(messages, id, res);
+    await streamChatResponse(messages, conversationId, res);
+    
+    // 更新会话时间
+    await updateConversationTime(conversationId);
     
     console.log('----------流式响应完成----------');
   } catch (error) {
@@ -37,9 +40,14 @@ export async function handleChat(req, res) {
 
 export async function handleGetHistory(req, res) {
   console.log('----------获取聊天历史-----------');
+  const { conversationId } = req.query;
+  
+  if (!conversationId) {
+    return res.status(400).json({ error: 'conversationId 不能为空' });
+  }
   
   try {
-    const messages = await getChatHistory('testId');
+    const messages = await getChatHistory(conversationId);
     
     const formattedMessages = messages.map(msg => ({
       id: msg.id,
@@ -54,5 +62,49 @@ export async function handleGetHistory(req, res) {
   } catch (error) {
     console.error('获取聊天历史失败:', error);
     res.status(500).json({ error: '获取聊天历史失败' });
+  }
+}
+
+export async function handleGetConversations(req, res) {
+  console.log('----------获取会话列表-----------');
+  
+  try {
+    const conversations = await getAllConversations();
+    res.status(200).json(conversations);
+    console.log('----------会话列表获取成功----------');
+  } catch (error) {
+    console.error('获取会话列表失败:', error);
+    res.status(500).json({ error: '获取会话列表失败' });
+  }
+}
+
+export async function handleCreateConversation(req, res) {
+  console.log('----------创建新会话-----------');
+  
+  try {
+    const conversation = await createConversation();
+    res.status(201).json(conversation);
+    console.log('----------新会话创建成功----------');
+  } catch (error) {
+    console.error('创建会话失败:', error);
+    res.status(500).json({ error: '创建会话失败' });
+  }
+}
+
+export async function handleDeleteConversation(req, res) {
+  console.log('----------删除会话-----------');
+  const { conversationId } = req.params;
+  
+  if (!conversationId) {
+    return res.status(400).json({ error: 'conversationId 不能为空' });
+  }
+  
+  try {
+    await deleteConversation(conversationId);
+    res.status(200).json({ message: '会话删除成功' });
+    console.log('----------会话删除成功----------');
+  } catch (error) {
+    console.error('删除会话失败:', error);
+    res.status(500).json({ error: '删除会话失败' });
   }
 }

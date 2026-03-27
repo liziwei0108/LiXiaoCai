@@ -1,27 +1,6 @@
 import pool from '../config/db.js';
 
 
-// 初始化 testId 会话
-export async function initTestConversation() {
-  try {
-    // 检查 testId 会话是否存在
-    const checkQuery = 'SELECT id FROM conversations WHERE id = $1';
-    const checkResult = await pool.query(checkQuery, ['testId']);
-    
-    if (checkResult.rows.length === 0) {
-      // 创建 testId 会话
-      const createQuery = 'INSERT INTO conversations (id) VALUES ($1)';
-      await pool.query(createQuery, ['testId']);
-      console.log('testId 会话创建成功！');
-    } else {
-      console.log('testId 会话已存在，无需创建');
-    }
-  } catch (error) {
-    console.error('初始化 testId 会话失败:', error);
-    throw error;
-  }
-}
-
 // 存储消息到数据库
 export async function saveMessage(conversationId, role, content, parts) {
   try {
@@ -105,9 +84,72 @@ export async function searchNotesFromDb(queryEmbedding, limit = 3) {
   }
 }
 
+// 获取所有会话列表
+export async function getAllConversations() {
+  try {
+    const query = `
+      SELECT c.id, c.created_at, c.updated_at,
+        (SELECT content FROM messages 
+         WHERE conversation_id = c.id AND role = 'user' 
+         ORDER BY created_at ASC LIMIT 1) as first_message
+      FROM conversations c
+      ORDER BY c.updated_at DESC
+    `;
+    
+    const result = await pool.query(query);
+    return result.rows.map(row => ({
+      id: row.id,
+      title: row.first_message ? row.first_message.slice(0, 20) + (row.first_message.length > 20 ? '...' : '') : '新对话',
+      createdAt: row.created_at,
+      updatedAt: row.updated_at
+    }));
+  } catch (error) {
+    console.error('获取会话列表失败:', error);
+    throw error;
+  }
+}
+
+// 创建新会话
+export async function createConversation() {
+  try {
+    const conversationId = `conv_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+    const query = 'INSERT INTO conversations (id) VALUES ($1) RETURNING id, created_at, updated_at';
+    const result = await pool.query(query, [conversationId]);
+    console.log('新会话创建成功:', conversationId);
+    return {
+      id: result.rows[0].id,
+      title: '新对话',
+      createdAt: result.rows[0].created_at,
+      updatedAt: result.rows[0].updated_at
+    };
+  } catch (error) {
+    console.error('创建会话失败:', error);
+    throw error;
+  }
+}
+
+// 删除会话
+export async function deleteConversation(conversationId) {
+  try {
+    // 先删除关联的消息
+    const deleteMessagesQuery = 'DELETE FROM messages WHERE conversation_id = $1';
+    await pool.query(deleteMessagesQuery, [conversationId]);
+    
+    // 删除会话
+    const deleteConvQuery = 'DELETE FROM conversations WHERE id = $1';
+    await pool.query(deleteConvQuery, [conversationId]);
+    console.log('会话删除成功:', conversationId);
+  } catch (error) {
+    console.error('删除会话失败:', error);
+    throw error;
+  }
+}
+
 export default {
-  initTestConversation,
   saveMessage,
   getChatHistory,
-  updateConversationTime
+  updateConversationTime,
+  getAllConversations,
+  createConversation,
+  deleteConversation
 };

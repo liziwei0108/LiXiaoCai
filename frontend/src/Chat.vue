@@ -1,149 +1,203 @@
 <template>
-  <div class="chat-app">
-    <header class="chat-header">
-      <div class="header-content">
-        <div class="logo">
-          <div class="logo-avatar">
-            <img src="/yuanbao.png" alt="财咪" class="avatar-img" />
-          </div>
-          <div class="logo-text-wrap">
-            <span class="logo-text">财咪</span>
-            <span class="logo-subtext">你的理财小助手</span>
-          </div>
+  <div class="chat-layout">
+    <!-- 侧边栏 -->
+    <aside class="sidebar" :class="{ collapsed: isSidebarCollapsed }">
+      <div class="sidebar-header">
+        <button class="new-chat-btn" @click="createNewConversation">
+          <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M12 5V19M5 12H19" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <span>新增对话</span>
+        </button>
+        <button class="collapse-btn" @click="toggleSidebar" title="收起">
+          <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M11 17L6 12L11 7M18 17L13 12L18 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+      </div>
+      
+      <div class="conversation-list">
+        <div v-if="conversations.length === 0" class="empty-state">
+          <span class="empty-text">暂无对话</span>
         </div>
-        <div class="header-status" v-if="isLoading">
-          <span class="status-paw"></span>
-          <span class="status-text">喵呜~正在思考...</span>
+        <div
+          v-for="conv in conversations"
+          :key="conv.id"
+          class="conversation-item"
+          :class="{ active: currentConversationId === conv.id }"
+          @click="switchConversation(conv.id)"
+        >
+          <div class="conv-info">
+            <div class="conv-title">{{ conv.title }}</div>
+            <div class="conv-time">{{ formatTime(conv.updatedAt) }}</div>
+          </div>
+          <button class="delete-btn" @click.stop="showDeleteConfirm(conv.id)" title="删除">
+            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M18 6L6 18M6 6L18 18" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </button>
         </div>
       </div>
-    </header>
+    </aside>
 
-    <main class="chat-main">
-      <div class="messages-wrapper">
+    <!-- 悬浮按钮（侧边栏收缩时显示） -->
+    <div class="floating-buttons" v-if="isSidebarCollapsed">
+      <button class="fab expand-btn" @click="toggleSidebar" title="展开对话列表">
+        <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M4 6H20M4 12H20M4 18H20" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </button>
+      <button class="fab new-btn" @click="createNewConversation" title="新增对话">
+        <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M12 5V19M5 12H19" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </button>
+    </div>
 
-        <div v-if="initMessages.length === 0 && messages.length === 0" class="welcome-section">
-          <div class="welcome-avatar">
-            <img src="/yuanbao.png" alt="财咪" class="avatar-img" />
+    <!-- 删除确认弹窗 -->
+    <ConfirmModal
+      v-model:visible="showDeleteModal"
+      :title="deleteModalTitle"
+      :content="deleteModalContent"
+      icon="🗑️"
+      confirm-text="删除"
+      cancel-text="取消"
+      confirm-button-type="danger"
+      @confirm="confirmDelete"
+      @cancel="cancelDelete"
+    />
+
+    <!-- 主聊天区域 -->
+    <div class="chat-app" :class="{ 'sidebar-collapsed': isSidebarCollapsed }">
+      <header class="chat-header">
+        <div class="header-content">
+          <div class="logo">
+            <div class="logo-avatar">
+              <img src="/yuanbao.png" alt="财咪" class="avatar-img" />
+            </div>
+            <div class="logo-text-wrap">
+              <span class="logo-text">财咪</span>
+              <span class="logo-subtext">你的理财小助手</span>
+            </div>
           </div>
-          <h2 class="welcome-title">你好呀！我是财咪~ 🐱</h2>
-          <p class="welcome-desc">一只懂理财的小猫咪，让我帮你管理财富吧！</p>
-          <div class="quick-questions">
-            <button class="quick-btn" @click="quickAsk('如何开始理财？')">
-              <span class="btn-icon">💰</span>如何开始理财？
-            </button>
-            <button class="quick-btn" @click="quickAsk('新手适合买什么基金？')">
-              <span class="btn-icon">📈</span>新手买什么基金？
-            </button>
-            <button class="quick-btn" @click="quickAsk('什么是复利？')">
-              <span class="btn-icon">🔄</span>什么是复利？
-            </button>
-            <button class="quick-btn" @click="quickAsk('每月存多少钱合适？')">
-              <span class="btn-icon">🐟</span>每月存多少钱？
-            </button>
+          <div class="header-status" v-if="isLoading">
+            <span class="status-paw"></span>
+            <span class="status-text">喵呜~正在思考...</span>
           </div>
         </div>
+      </header>
 
-        <div v-if="initMessages.length > 0">
-          <div v-for="message in initMessages" :key="message.id" class="message-item" :class="message.role">
-            <!-- 只显示AI的头像，用户不显示头像 -->
+      <main class="chat-main">
+        <div class="messages-wrapper">
+          <div v-if="!currentConversationId && messages.length === 0" class="welcome-section">
+            <div class="welcome-avatar">
+              <img src="/yuanbao.png" alt="财咪" class="avatar-img" />
+            </div>
+            <h2 class="welcome-title">你好呀！我是财咪~ 🐱</h2>
+            <p class="welcome-desc">一只懂理财的小猫咪，让我帮你管理财富吧！</p>
+            <p class="welcome-hint">直接在下方输入问题开始聊天~</p>
+            <div class="quick-questions">
+              <button class="quick-btn" @click="quickAsk('如何开始理财？')">
+                <span class="btn-icon">💰</span>如何开始理财？
+              </button>
+              <button class="quick-btn" @click="quickAsk('新手适合买什么基金？')">
+                <span class="btn-icon">📈</span>新手买什么基金？
+              </button>
+              <button class="quick-btn" @click="quickAsk('什么是复利？')">
+                <span class="btn-icon">🔄</span>什么是复利？
+              </button>
+              <button class="quick-btn" @click="quickAsk('每月存多少钱合适？')">
+                <span class="btn-icon">🐟</span>每月存多少钱？
+              </button>
+            </div>
+          </div>
+
+          <div v-for="message in messages" :key="message.id" class="message-item" :class="message.role">
             <div v-if="message.role === 'assistant'" class="message-avatar" :class="message.role">
               <img src="/yuanbao.png" alt="财咪" class="avatar-img" />
             </div>
             <div class="message-content">
+              <div v-if="message.reasoning || message.parts?.find(p => p.type === 'reasoning')?.text" class="reasoning-section">
+                <div class="reasoning-header" @click="toggleReasoning(message.id)">
+                  <span class="reasoning-icon">🤔</span>
+                  <span class="reasoning-title">思考过程</span>
+                  <span class="reasoning-toggle">{{ isReasoningExpanded(message.id) ? '▼' : '▶' }}</span>
+                </div>
+                <div v-show="isReasoningExpanded(message.id)" class="reasoning-content" v-html="renderMarkdown(message.reasoning || message.parts?.find(p => p.type === 'reasoning')?.text)"></div>
+              </div>
               <div v-for="part in message.parts" :key="part.type">
                 <div v-if="part.type === 'text' && part.text" class="message-text" v-html="renderMarkdown(part.text)"></div>
               </div>
             </div>
           </div>
-        </div>
 
-        <div v-for="message in messages" :key="message.id" class="message-item" :class="message.role">
-          <!-- 只显示AI的头像，用户不显示头像 -->
-          <div v-if="message.role === 'assistant'" class="message-avatar" :class="message.role">
-            <img src="/yuanbao.png" alt="财咪" class="avatar-img" />
-          </div>
-          <div class="message-content">
-            <!-- 思考过程 -->
-            <div v-if="message.reasoning || message.parts?.find(p => p.type === 'reasoning')?.text" class="reasoning-section">
-              <div class="reasoning-header" @click="toggleReasoning(message.id)">
-                <span class="reasoning-icon">🤔</span>
-                <span class="reasoning-title">思考过程</span>
-                <span class="reasoning-toggle">{{ isReasoningExpanded(message.id) ? '▼' : '▶' }}</span>
+          <div v-if="isLoading && !isStreaming" class="message-item assistant loading">
+            <div class="message-avatar assistant loading-avatar">
+              <img src="/yuanbao.png" alt="财咪" class="avatar-img" />
+            </div>
+            <div class="message-content loading-content">
+              <div class="loading-bubbles">
+                <span class="bubble"></span>
+                <span class="bubble"></span>
+                <span class="bubble"></span>
               </div>
-              <div v-show="isReasoningExpanded(message.id)" class="reasoning-content" v-html="renderMarkdown(message.reasoning || message.parts?.find(p => p.type === 'reasoning')?.text)"></div>
-            </div>
-            <!-- 正式回答 -->
-            <div v-for="part in message.parts" :key="part.type">
-              <div v-if="part.type === 'text' && part.text" class="message-text" v-html="renderMarkdown(part.text)"></div>
+              <div class="loading-text-wrap">
+                <span class="loading-text">正在思考...</span>
+                <span class="loading-cat">🐱</span>
+              </div>
             </div>
           </div>
-        </div>
 
-        <div v-if="isLoading && !isStreaming" class="message-item assistant loading">
-          <div class="message-avatar assistant loading-avatar">
-            <img src="/yuanbao.png" alt="财咪" class="avatar-img" />
-          </div>
-          <div class="message-content loading-content">
-            <div class="loading-bubbles">
-              <span class="bubble"></span>
-              <span class="bubble"></span>
-              <span class="bubble"></span>
-            </div>
-            <div class="loading-text-wrap">
-              <span class="loading-text">正在思考...</span>
-              <span class="loading-cat">🐱</span>
-            </div>
-          </div>
+          <div ref="scrollAnchor"></div>
         </div>
+      </main>
 
-        <div ref="scrollAnchor"></div>
+      <footer class="chat-footer">
+        <form class="input-form" @submit="handleSubmit">
+          <div class="input-wrapper">
+            <textarea
+              v-model="input"
+              :placeholder="'告诉我你想了解什么...'"
+              :disabled="isLoading"
+              autocomplete="off"
+              class="chat-input"
+              @keydown="handleKeydown"
+            ></textarea>
+            <button
+              type="submit"
+              class="send-btn"
+              :disabled="isLoading || !input.trim()"
+              :class="{ sending: isLoading }"
+            >
+              <svg v-if="!isLoading" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M4 12L20 12M20 12L12 5M20 12L12 19" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+              <span v-else class="btn-loader"></span>
+            </button>
+          </div>
+          <p class="disclaimer">🐾 内容仅供科普参考，不构成投资建议哦，喵~</p>
+        </form>
+      </footer>
+
+      <div class="decoration-left">
+        <span class="star">⭐</span>
+        <span class="star">✨</span>
+        <span class="paw">🐾</span>
       </div>
-    </main>
-
-    <footer class="chat-footer">
-      <form class="input-form" @submit="handleSubmit">
-        <div class="input-wrapper">
-          <textarea
-            v-model="input"
-            placeholder="告诉我你想了解什么..."
-            :disabled="isLoading"
-            autocomplete="off"
-            class="chat-input"
-            @keydown="handleKeydown"
-          ></textarea>
-          <button
-            type="submit"
-            class="send-btn"
-            :disabled="isLoading || !input.trim()"
-            :class="{ sending: isLoading }"
-          >
-            <svg v-if="!isLoading" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M4 12L20 12M20 12L12 5M20 12L12 19" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
-            <span v-else class="btn-loader"></span>
-          </button>
-        </div>
-        <p class="disclaimer">🐾 内容仅供科普参考，不构成投资建议哦，喵~</p>
-      </form>
-    </footer>
-
-    <div class="decoration-left">
-      <span class="star">⭐</span>
-      <span class="star">✨</span>
-      <span class="paw">🐾</span>
-    </div>
-    <div class="decoration-right">
-      <span class="star">💰</span>
-      <span class="star">📈</span>
-      <span class="paw">🐱</span>
+      <div class="decoration-right">
+        <span class="star">💰</span>
+        <span class="star">📈</span>
+        <span class="paw">🐱</span>
+      </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { watch, ref, nextTick, onMounted, computed } from 'vue'
+import { watch, ref, nextTick, onMounted } from 'vue'
 import { marked } from 'marked'
 import hljs from 'highlight.js'
+import ConfirmModal from './components/ConfirmModal.vue'
 
 marked.setOptions({
   highlight: (code, lang) => {
@@ -159,12 +213,21 @@ marked.setOptions({
 const input = ref('')
 const messages = ref([])
 const scrollAnchor = ref(null)
-const initMessages = ref([])
 const isLoading = ref(false)
 const isStreaming = ref(false)
-const expandedReasoning = ref(new Set()) // 存储展开的思考过程消息ID
-const reasoningCompleted = ref(new Set()) // 存储思考过程已完成的消息ID
-let eventSource = null
+const expandedReasoning = ref(new Set())
+const reasoningCompleted = ref(new Set())
+
+// 会话相关状态
+const conversations = ref([])
+const currentConversationId = ref('')
+const isSidebarCollapsed = ref(true)
+
+// 删除确认弹窗状态
+const showDeleteModal = ref(false)
+const deleteTargetId = ref('')
+const deleteModalTitle = ref('删除对话')
+const deleteModalContent = ref('确定要删除这个对话吗？删除后无法恢复哦~')
 
 // 切换思考过程的展开/折叠
 const toggleReasoning = (messageId) => {
@@ -177,30 +240,135 @@ const toggleReasoning = (messageId) => {
 
 // 检查思考过程是否展开
 const isReasoningExpanded = (messageId) => {
-  // 如果思考过程已完成且用户未手动切换，则默认折叠
-  // 如果思考过程未完成，则默认展开
   if (reasoningCompleted.value.has(messageId)) {
     return expandedReasoning.value.has(messageId)
   }
   return !expandedReasoning.value.has(messageId)
 }
 
-const fetchHistory = async () => {
+// 获取会话列表
+const fetchConversations = async () => {
   try {
-    const response = await fetch('/api/history')
+    const response = await fetch('/api/conversations')
+    if (response.ok) {
+      const data = await response.json()
+      conversations.value = data
+    }
+  } catch (error) {
+    console.error('获取会话列表失败:', error)
+  }
+}
+
+// 获取特定会话的历史记录
+const fetchHistoryById = async (conversationId) => {
+  if (!conversationId) return
+  
+  try {
+    const response = await fetch(`/api/history?conversationId=${conversationId}`)
     if (response.ok) {
       const history = await response.json()
-      if (history && history.length > 0) {
-        initMessages.value = history
-      }
+      messages.value = history
     }
   } catch (error) {
     console.error('获取历史记录失败:', error)
   }
 }
 
+// 创建新会话
+const createNewConversation = async () => {
+  try {
+    const response = await fetch('/api/conversations', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' }
+    })
+    if (response.ok) {
+      const newConversation = await response.json()
+      conversations.value.unshift(newConversation)
+      currentConversationId.value = newConversation.id
+      messages.value = []
+      input.value = ''
+    }
+  } catch (error) {
+    console.error('创建会话失败:', error)
+  }
+}
+
+// 切换会话
+const switchConversation = async (conversationId) => {
+  if (conversationId === currentConversationId.value) return
+  
+  currentConversationId.value = conversationId
+  messages.value = []
+  await fetchHistoryById(conversationId)
+  scrollToBottom()
+}
+
+// 显示删除确认弹窗
+const showDeleteConfirm = (conversationId) => {
+  deleteTargetId.value = conversationId
+  showDeleteModal.value = true
+}
+
+// 确认删除
+const confirmDelete = async () => {
+  if (!deleteTargetId.value) return
+  
+  try {
+    const response = await fetch(`/api/conversations/${deleteTargetId.value}`, {
+      method: 'DELETE'
+    })
+    if (response.ok) {
+      conversations.value = conversations.value.filter(c => c.id !== deleteTargetId.value)
+      if (currentConversationId.value === deleteTargetId.value) {
+        currentConversationId.value = ''
+        messages.value = []
+      }
+    }
+  } catch (error) {
+    console.error('删除会话失败:', error)
+  } finally {
+    showDeleteModal.value = false
+    deleteTargetId.value = ''
+  }
+}
+
+// 取消删除
+const cancelDelete = () => {
+  showDeleteModal.value = false
+  deleteTargetId.value = ''
+}
+
+// 切换侧边栏
+const toggleSidebar = () => {
+  isSidebarCollapsed.value = !isSidebarCollapsed.value
+}
+
+// 格式化时间
+const formatTime = (timeStr) => {
+  if (!timeStr) return ''
+  const date = new Date(timeStr)
+  const now = new Date()
+  const diff = now - date
+  
+  // 小于1小时显示分钟
+  if (diff < 60 * 60 * 1000) {
+    const minutes = Math.floor(diff / (60 * 1000))
+    return minutes < 1 ? '刚刚' : `${minutes}分钟前`
+  }
+  // 小于24小时显示小时
+  if (diff < 24 * 60 * 60 * 1000) {
+    return `${Math.floor(diff / (60 * 60 * 1000))}小时前`
+  }
+  // 小于7天显示天数
+  if (diff < 7 * 24 * 60 * 60 * 1000) {
+    return `${Math.floor(diff / (24 * 60 * 60 * 1000))}天前`
+  }
+  // 否则显示日期
+  return date.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' })
+}
+
 const sendMessage = async (text) => {
-  if (!text.trim() || isLoading.value) return
+  if (!text.trim() || isLoading.value || !currentConversationId.value) return
 
   const userMessage = {
     id: `msg_${Date.now()}`,
@@ -221,7 +389,7 @@ const sendMessage = async (text) => {
       },
       body: JSON.stringify({
         messages: [{ role: 'user', content: text }],
-        id: 'testId'
+        conversationId: currentConversationId.value
       })
     })
 
@@ -229,14 +397,9 @@ const sendMessage = async (text) => {
       throw new Error('请求失败')
     }
 
-    if (eventSource) {
-      eventSource.close()
-    }
-
     const reader = response.body.getReader()
     const decoder = new TextDecoder()
     
-    // 不预先添加空白消息，等开始流式输出时再添加
     let assistantMessageAdded = false
 
     while (true) {
@@ -252,10 +415,8 @@ const sendMessage = async (text) => {
             const data = JSON.parse(line.slice(6))
             
             if (data.type === 'text') {
-              // 标记开始流式输出
               if (!isStreaming.value) {
                 isStreaming.value = true
-                // 第一次收到文本时，添加助手消息
                 if (!assistantMessageAdded) {
                   const assistantMessage = {
                     id: `msg_${Date.now()}_assistant`,
@@ -271,11 +432,9 @@ const sendMessage = async (text) => {
                   assistantMessageAdded = true
                 }
               } else {
-                // 实时更新消息内容
                 const lastMessage = messages.value[messages.value.length - 1]
                 if (lastMessage && lastMessage.role === 'assistant') {
                   lastMessage.content += data.text
-                  // 找到 text part 并更新
                   const textPart = lastMessage.parts.find(p => p.type === 'text')
                   if (textPart) {
                     textPart.text += data.text
@@ -283,7 +442,6 @@ const sendMessage = async (text) => {
                 }
               }
             } else if (data.type === 'reasoning') {
-              // 处理思考过程
               if (!isStreaming.value) {
                 isStreaming.value = true
                 if (!assistantMessageAdded) {
@@ -304,7 +462,6 @@ const sendMessage = async (text) => {
                 const lastMessage = messages.value[messages.value.length - 1]
                 if (lastMessage && lastMessage.role === 'assistant') {
                   lastMessage.reasoning = (lastMessage.reasoning || '') + data.text
-                  // 找到 reasoning part 并更新
                   const reasoningPart = lastMessage.parts.find(p => p.type === 'reasoning')
                   if (reasoningPart) {
                     reasoningPart.text = (reasoningPart.text || '') + data.text
@@ -312,12 +469,10 @@ const sendMessage = async (text) => {
                 }
               }
             } else if (data.type === 'done') {
-              // 完成时更新最终内容
               const lastMessage = messages.value[messages.value.length - 1]
               if (lastMessage && lastMessage.role === 'assistant') {
                 lastMessage.content = data.text
                 lastMessage.reasoning = data.reasoning || lastMessage.reasoning
-                // 更新 parts
                 const reasoningPart = lastMessage.parts.find(p => p.type === 'reasoning')
                 const textPart = lastMessage.parts.find(p => p.type === 'text')
                 if (reasoningPart) {
@@ -326,9 +481,10 @@ const sendMessage = async (text) => {
                 if (textPart) {
                   textPart.text = data.text
                 }
-                // 标记思考过程已完成
                 reasoningCompleted.value.add(lastMessage.id)
               }
+              // 刷新会话列表以更新时间
+              await fetchConversations()
             }
           } catch (e) {
             console.error('解析数据失败:', e)
@@ -344,27 +500,42 @@ const sendMessage = async (text) => {
   }
 }
 
-const handleSubmit = (e) => {
+const handleSubmit = async (e) => {
   e?.preventDefault()
-  if (input.value.trim() && !isLoading.value) {
+  if (!input.value.trim() || isLoading.value) return
+  
+  // 如果没有当前会话，先创建新会话
+  if (!currentConversationId.value) {
+    await createNewConversation()
+  }
+  
+  // 确保会话创建成功后再发送消息
+  if (currentConversationId.value) {
     sendMessage(input.value)
     input.value = ''
   }
 }
 
-const handleKeydown = (e) => {
+const handleKeydown = async (e) => {
   if (e.ctrlKey && e.key === 'Enter') {
     e.preventDefault()
     input.value += '\n'
   } else if (e.key === 'Enter' && !e.shiftKey) {
     e.preventDefault()
-    handleSubmit(e)
+    await handleSubmit(e)
   }
 }
 
 const quickAsk = (question) => {
-  input.value = question
-  handleSubmit()
+  if (!currentConversationId.value) {
+    createNewConversation().then(() => {
+      input.value = question
+      handleSubmit()
+    })
+  } else {
+    input.value = question
+    handleSubmit()
+  }
 }
 
 const scrollToBottom = () => {
@@ -388,14 +559,9 @@ const renderMarkdown = (text) => {
   return marked.parse(text)
 }
 
-onMounted(async() => {
-  await fetchHistory()
-
-  if(initMessages.value.length > 0) {
-    scrollToBottom()
-  }
+onMounted(async () => {
+  await fetchConversations()
 })
-
 </script>
 
 <style scoped>
@@ -421,13 +587,240 @@ onMounted(async() => {
   --radius-lg: 24px;
 }
 
+.chat-layout {
+  display: flex;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* 侧边栏样式 */
+.sidebar {
+  width: 280px;
+  background: linear-gradient(180deg, #FFF8E7 0%, #FFEFC7 100%);
+  border-right: 2px solid var(--border-color);
+  display: flex;
+  flex-direction: column;
+  transition: all 0.3s ease;
+  flex-shrink: 0;
+}
+
+.sidebar.collapsed {
+  width: 0;
+  overflow: hidden;
+  border-right: none;
+}
+
+.sidebar-header {
+  padding: 16px;
+  border-bottom: 1px solid var(--border-color);
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.new-chat-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 16px;
+  background: linear-gradient(135deg, #FFB347 0%, #FF9F1C 100%);
+  color: white;
+  border: none;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 12px rgba(255, 179, 71, 0.3);
+}
+
+.new-chat-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(255, 179, 71, 0.4);
+}
+
+.new-chat-btn svg {
+  width: 18px;
+  height: 18px;
+}
+
+.collapse-btn {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.6);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  color: var(--text-secondary);
+}
+
+.collapse-btn:hover {
+  background: white;
+  color: var(--accent-dark);
+}
+
+.collapse-btn svg {
+  width: 18px;
+  height: 18px;
+}
+
+.conversation-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px;
+}
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
+}
+
+.empty-text {
+  font-size: 14px;
+  color: #C9A86C;
+  font-weight: 500;
+}
+
+.conversation-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  margin-bottom: 4px;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+.conversation-item:hover {
+  background: rgba(255, 255, 255, 0.6);
+}
+
+.conversation-item.active {
+  background: white;
+  box-shadow: 0 2px 8px rgba(255, 179, 71, 0.15);
+  border-left: 3px solid var(--accent-color);
+}
+
+.conv-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.conv-title {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.conv-time {
+  font-size: 12px;
+  color: var(--text-tertiary);
+  margin-top: 2px;
+}
+
+.delete-btn {
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  opacity: 0;
+  transition: all 0.2s ease;
+  color: var(--text-tertiary);
+}
+
+.conversation-item:hover .delete-btn {
+  opacity: 1;
+}
+
+.delete-btn:hover {
+  background: rgba(255, 100, 100, 0.1);
+  color: #ff6464;
+}
+
+.delete-btn svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* 悬浮按钮样式 */
+.floating-buttons {
+  position: fixed;
+  top: 16px;
+  left: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  z-index: 1000;
+}
+
+.fab {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.fab svg {
+  width: 22px;
+  height: 22px;
+}
+
+.expand-btn {
+  background: white;
+  color: var(--text-secondary);
+}
+
+.expand-btn:hover {
+  background: var(--bg-secondary);
+  color: var(--accent-dark);
+  transform: scale(1.1);
+}
+
+.new-btn {
+  background: linear-gradient(135deg, #FFB347 0%, #FF9F1C 100%);
+  color: white;
+}
+
+.new-btn:hover {
+  transform: scale(1.1);
+  box-shadow: 0 6px 20px rgba(255, 179, 71, 0.4);
+}
+
+/* 主聊天区域 */
 .chat-app {
+  flex: 1;
   height: 100vh;
   display: flex;
   flex-direction: column;
   background: linear-gradient(135deg, #FFFEF5 0%, #FFF8E7 50%, #FFF5DC 100%);
   position: relative;
   overflow: hidden;
+  transition: margin-left 0.3s ease;
 }
 
 .decoration-left, .decoration-right {
@@ -611,8 +1004,17 @@ onMounted(async() => {
 .welcome-desc {
   font-size: 15px;
   color: var(--text-secondary);
-  margin: 0 0 28px;
+  margin: 0 0 12px;
   max-width: 320px;
+}
+
+.welcome-hint {
+  font-size: 13px;
+  color: var(--accent-dark);
+  margin: 0 0 28px;
+  padding: 8px 16px;
+  background: rgba(255, 179, 71, 0.1);
+  border-radius: 20px;
 }
 
 .quick-questions {
@@ -719,40 +1121,30 @@ onMounted(async() => {
   background: linear-gradient(135deg, #FFFFFF 0%, #FFFEF5 100%);
   color: var(--text-primary);
   border-top-left-radius: 4px;
-  border: 2px solid var(--assistant-border);
+  border: 1px solid var(--assistant-border);
 }
 
-.message-text {
-  word-wrap: break-word;
-  font-size: 16px;
-}
-
-.thinking-text {
-  color: var(--text-tertiary);
-  font-style: italic;
-  opacity: 0.7;
-}
-
-/* 思考过程样式 */
 .reasoning-section {
-  background: linear-gradient(135deg, #FAFAFA 0%, #F5F5F5 100%);
+  margin-bottom: 12px;
   border-radius: 12px;
-  padding: 10px 14px;
-  margin-bottom: 16px;
-  position: relative;
+  overflow: hidden;
+  background: rgba(255, 248, 231, 0.8);
+  border: 1px solid var(--border-color);
 }
 
 .reasoning-header {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
+  padding: 10px 14px;
   cursor: pointer;
+  background: rgba(255, 239, 199, 0.5);
+  transition: all 0.2s ease;
   user-select: none;
-  padding: 4px 0;
 }
 
 .reasoning-header:hover {
-  opacity: 0.8;
+  background: rgba(255, 239, 199, 0.8);
 }
 
 .reasoning-icon {
@@ -762,102 +1154,152 @@ onMounted(async() => {
 .reasoning-title {
   font-size: 13px;
   font-weight: 600;
-  color: #9E9E9E;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
+  color: var(--accent-dark);
   flex: 1;
 }
 
 .reasoning-toggle {
-  font-size: 12px;
-  color: #BDBDBD;
+  font-size: 11px;
+  color: var(--text-tertiary);
   transition: transform 0.2s ease;
 }
 
 .reasoning-content {
-  font-size: 14px;
-  color: #757575;
-  line-height: 1.6;
-  margin-top: 8px;
-  padding-top: 8px;
-  border-top: 1px dashed #E0E0E0;
+  padding: 14px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.7;
+  border-top: 1px dashed var(--border-color);
 }
 
 .reasoning-content :deep(p) {
-  margin: 0 0 8px;
+  margin: 0 0 10px;
 }
 
 .reasoning-content :deep(p:last-child) {
   margin-bottom: 0;
 }
 
-.reasoning-content :deep(ul),
-.reasoning-content :deep(ol) {
-  margin: 8px 0;
-  padding-left: 20px;
+.reasoning-content :deep(code) {
+  background: rgba(255, 179, 71, 0.15);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: 'Courier New', monospace;
+  font-size: 12px;
+  color: var(--accent-dark);
 }
 
-.reasoning-content :deep(li) {
-  margin: 4px 0;
+.message-text {
+  font-size: 15px;
+  line-height: 1.7;
 }
 
-.message-item.assistant .message-text :deep(p) {
-  margin: 0 0 14px;
+.message-text :deep(p) {
+  margin: 0 0 12px;
 }
 
-.message-item.assistant .message-text :deep(p:last-child) {
+.message-text :deep(p:last-child) {
   margin-bottom: 0;
 }
 
-.message-item.assistant .message-text :deep(code) {
-  background: linear-gradient(135deg, #FFF8E7 0%, #FFEFC7 100%);
-  padding: 2px 8px;
-  border-radius: 6px;
-  font-family: 'SF Mono', Monaco, monospace;
-  font-size: 13px;
+.message-text :deep(code) {
+  background: rgba(255, 179, 71, 0.15);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: 'Courier New', monospace;
+  font-size: 14px;
   color: var(--accent-dark);
 }
 
-.message-item.assistant .message-text :deep(pre) {
-  background: linear-gradient(135deg, #5A4A2A 0%, #3D2E1A 100%);
-  padding: 14px;
+.message-text :deep(pre) {
+  background: #2d2d2d;
+  padding: 16px;
   border-radius: 12px;
   overflow-x: auto;
-  margin: 14px 0;
-}
-.message-item.assistant .message-text :deep(pre code) {
-  background: transparent;
-  padding: 0;
-  color: #FFE066;
-}
-
-.message-item.assistant .message-text :deep(ul),
-.message-item.assistant .message-text :deep(ol) {
-  padding-left: 24px;
   margin: 12px 0;
 }
 
-.message-item.assistant .message-text :deep(li) {
-  margin: 6px 0;
+.message-text :deep(pre code) {
+  background: none;
+  padding: 0;
+  color: #f8f8f2;
+  font-size: 13px;
+  line-height: 1.6;
 }
 
-.message-item.assistant .message-text :deep(blockquote) {
+.message-text :deep(ul), .message-text :deep(ol) {
+  margin: 12px 0;
+  padding-left: 24px;
+}
+
+.message-text :deep(li) {
+  margin-bottom: 6px;
+}
+
+.message-text :deep(h1), .message-text :deep(h2), .message-text :deep(h3) {
+  margin: 16px 0 12px;
+  color: var(--text-primary);
+}
+
+.message-text :deep(h1) { font-size: 20px; }
+.message-text :deep(h2) { font-size: 18px; }
+.message-text :deep(h3) { font-size: 16px; }
+
+.message-text :deep(blockquote) {
   border-left: 4px solid var(--accent-color);
-  background: linear-gradient(135deg, #FFF8E7 0%, #FFEFC7 100%);
-  padding: 12px 16px;
-  border-radius: 0 12px 12px 0;
-  margin: 14px 0;
+  padding-left: 16px;
+  margin: 12px 0;
   color: var(--text-secondary);
+  font-style: italic;
 }
 
-.message-item.assistant .message-text :deep(strong) {
+.message-text :deep(a) {
   color: var(--accent-dark);
+  text-decoration: none;
+  border-bottom: 1px solid var(--accent-color);
+}
+
+.message-text :deep(a:hover) {
+  border-bottom: 2px solid var(--accent-dark);
+}
+
+.message-text :deep(table) {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 12px 0;
+  font-size: 14px;
+}
+
+.message-text :deep(th), .message-text :deep(td) {
+  padding: 10px 14px;
+  border: 1px solid var(--border-color);
+  text-align: left;
+}
+
+.message-text :deep(th) {
+  background: var(--bg-secondary);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.message-text :deep(tr:nth-child(even)) {
+  background: rgba(255, 248, 231, 0.5);
+}
+
+.thinking-text {
+  color: var(--text-tertiary);
+  font-style: italic;
 }
 
 .loading-content {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 14px;
+  gap: 12px;
+  padding: 20px 24px;
+  background: linear-gradient(135deg, #FFFFFF 0%, #FFFEF5 100%);
+  border: 1px solid var(--assistant-border);
+  min-width: 120px;
 }
 
 .loading-bubbles {
@@ -865,110 +1307,52 @@ onMounted(async() => {
   gap: 6px;
 }
 
-.loading-bubbles .bubble {
+.bubble {
   width: 10px;
   height: 10px;
   background: linear-gradient(135deg, #FFB347 0%, #FF9F1C 100%);
   border-radius: 50%;
-  animation: bubblePop 1.4s ease-in-out infinite;
+  animation: bubble 1.4s ease-in-out infinite;
 }
 
-.loading-bubbles .bubble:nth-child(1) { animation-delay: 0s; }
-.loading-bubbles .bubble:nth-child(2) { animation-delay: 0.2s; }
-.loading-bubbles .bubble:nth-child(3) { animation-delay: 0.4s; }
+.bubble:nth-child(1) { animation-delay: 0s; }
+.bubble:nth-child(2) { animation-delay: 0.2s; }
+.bubble:nth-child(3) { animation-delay: 0.4s; }
 
-@keyframes bubblePop {
-  0%, 60%, 100% { transform: scale(1); opacity: 0.6; }
-  30% { transform: scale(1.3); opacity: 1; }
+@keyframes bubble {
+  0%, 100% { transform: translateY(0); opacity: 0.4; }
+  50% { transform: translateY(-8px); opacity: 1; }
 }
 
 .loading-text-wrap {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
 }
 
 .loading-text {
   font-size: 13px;
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
 }
 
 .loading-cat {
-  font-size: 16px;
-  animation: catTail 0.5s ease-in-out infinite alternate;
-}
-
-@keyframes catTail {
-  from { transform: rotate(-10deg); }
-  to { transform: rotate(10deg); }
-}
-
-.loading-section {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  padding: 40px 20px;
-}
-
-.error-section {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  padding: 40px 20px;
-}
-
-.error-content {
-  background: linear-gradient(135deg, #FFECEC 0%, #FFD6D6 100%);
-  border: 2px solid #FFB3B3;
-  border-radius: 16px;
-  padding: 24px;
-  text-align: center;
-  max-width: 400px;
-  box-shadow: 0 4px 16px rgba(255, 179, 179, 0.2);
-}
-
-.error-icon {
-  font-size: 48px;
-  margin-bottom: 16px;
-  display: block;
-}
-
-.error-text {
   font-size: 14px;
-  color: #D32F2F;
-  margin: 0 0 20px;
-  line-height: 1.5;
+  animation: catBounce 0.6s ease-in-out infinite;
 }
 
-.retry-btn {
-  padding: 10px 20px;
-  background: linear-gradient(135deg, #FFB347 0%, #FF9F1C 100%);
-  border: none;
-  border-radius: 20px;
-  font-size: 14px;
-  color: white;
-  cursor: pointer;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  box-shadow: 0 4px 12px rgba(255, 179, 71, 0.3);
-}
-
-.retry-btn:hover {
-  background: linear-gradient(135deg, #FF9F1C 0%, #E8941A 100%);
-  transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(255, 179, 71, 0.4);
+@keyframes catBounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-3px); }
 }
 
 .chat-footer {
-  position: fixed;
+  position: sticky;
   bottom: 0;
-  left: 0;
-  right: 0;
-  background: linear-gradient(180deg, rgba(255,254,245,0.98) 0%, rgba(255,254,245,0.95) 100%);
+  z-index: 100;
+  background: linear-gradient(0deg, rgba(255,254,245,0.98) 0%, rgba(255,248,231,0.95) 100%);
   backdrop-filter: blur(20px);
   border-top: 2px solid var(--border-color);
-  padding: 14px 20px 24px;
-  z-index: 100;
-  box-shadow: 0 -4px 30px rgba(255, 179, 71, 0.1);
+  padding: 16px 20px 20px;
 }
 
 .input-form {
@@ -978,21 +1362,19 @@ onMounted(async() => {
 
 .input-wrapper {
   display: flex;
-  align-items: flex-start;
+  align-items: flex-end;
   gap: 12px;
-  background: linear-gradient(135deg, #FFFFFF 0%, #FFF8E7 100%);
+  background: white;
   border: 2px solid var(--border-color);
-  border-radius: 28px;
-  padding: 12px 12px 12px 24px;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  box-shadow: 0 4px 16px rgba(255, 179, 71, 0.1);
-  min-height: 44px;
+  border-radius: 24px;
+  padding: 12px 16px;
+  box-shadow: var(--shadow);
+  transition: all 0.3s ease;
 }
 
 .input-wrapper:focus-within {
   border-color: var(--accent-color);
-  box-shadow: 0 6px 24px rgba(255, 179, 71, 0.25);
-  transform: translateY(-2px);
+  box-shadow: 0 4px 24px rgba(255, 179, 71, 0.25);
 }
 
 .chat-input {
@@ -1016,6 +1398,11 @@ onMounted(async() => {
 
 .chat-input:focus {
   outline: none;
+}
+
+.chat-input:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
 }
 
 .send-btn {
@@ -1067,4 +1454,30 @@ onMounted(async() => {
   padding: 0 20px;
 }
 
+/* 响应式适配 */
+@media (max-width: 768px) {
+  .sidebar {
+    position: fixed;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    z-index: 1001;
+    transform: translateX(0);
+  }
+  
+  .sidebar.collapsed {
+    transform: translateX(-100%);
+    width: 280px;
+  }
+  
+  .chat-app {
+    margin-left: 0;
+  }
+  
+  .floating-buttons {
+    top: auto;
+    bottom: 100px;
+    left: 16px;
+  }
+}
 </style>

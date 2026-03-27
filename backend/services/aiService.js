@@ -340,8 +340,8 @@ export async function streamChatResponse(messages, id, res) {
         { type: 'reasoning', text: finalReasoningText },
         { type: 'text', text: finalResponseText }
       ];
-      await saveMessage('testId', 'assistant', finalResponseText, assistantParts);
-      await updateConversationTime('testId');
+      await saveMessage(id, 'assistant', finalResponseText, assistantParts);
+      await updateConversationTime(id);
       console.log('AI 响应存储成功并更新会话时间');
     } catch (error) {
       console.error('存储 AI 响应失败:', error);
