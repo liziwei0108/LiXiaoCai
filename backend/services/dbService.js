@@ -84,19 +84,38 @@ export async function searchNotesFromDb(queryEmbedding, limit = 3) {
   }
 }
 
-// 获取所有会话列表
-export async function getAllConversations() {
+// 获取用户的所有会话列表
+export async function getAllConversations(userId) {
   try {
-    const query = `
-      SELECT c.id, c.created_at, c.updated_at,
-        (SELECT content FROM messages 
-         WHERE conversation_id = c.id AND role = 'user' 
-         ORDER BY created_at ASC LIMIT 1) as first_message
-      FROM conversations c
-      ORDER BY c.updated_at DESC
-    `;
+    let query;
+    let params = [];
     
-    const result = await pool.query(query);
+    if (userId) {
+      // 登录用户：只返回该用户的会话
+      query = `
+        SELECT c.id, c.created_at, c.updated_at,
+          (SELECT content FROM messages 
+           WHERE conversation_id = c.id AND role = 'user' 
+           ORDER BY created_at ASC LIMIT 1) as first_message
+        FROM conversations c
+        WHERE c.user_id = $1
+        ORDER BY c.updated_at DESC
+      `;
+      params = [userId];
+    } else {
+      // 未登录用户：返回所有无 user_id 的会话（游客会话）
+      query = `
+        SELECT c.id, c.created_at, c.updated_at,
+          (SELECT content FROM messages 
+           WHERE conversation_id = c.id AND role = 'user' 
+           ORDER BY created_at ASC LIMIT 1) as first_message
+        FROM conversations c
+        WHERE c.user_id IS NULL
+        ORDER BY c.updated_at DESC
+      `;
+    }
+    
+    const result = await pool.query(query, params);
     return result.rows.map(row => ({
       id: row.id,
       title: row.first_message ? row.first_message.slice(0, 20) + (row.first_message.length > 20 ? '...' : '') : '新对话',
@@ -110,12 +129,22 @@ export async function getAllConversations() {
 }
 
 // 创建新会话
-export async function createConversation() {
+export async function createConversation(userId = null) {
   try {
     const conversationId = `conv_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
-    const query = 'INSERT INTO conversations (id) VALUES ($1) RETURNING id, created_at, updated_at';
-    const result = await pool.query(query, [conversationId]);
-    console.log('新会话创建成功:', conversationId);
+    let query;
+    let params;
+    
+    if (userId) {
+      query = 'INSERT INTO conversations (id, user_id) VALUES ($1, $2) RETURNING id, created_at, updated_at';
+      params = [conversationId, userId];
+    } else {
+      query = 'INSERT INTO conversations (id) VALUES ($1) RETURNING id, created_at, updated_at';
+      params = [conversationId];
+    }
+    
+    const result = await pool.query(query, params);
+    console.log('新会话创建成功:', conversationId, userId ? `用户: ${userId}` : '游客');
     return {
       id: result.rows[0].id,
       title: '新对话',
@@ -128,9 +157,26 @@ export async function createConversation() {
   }
 }
 
-// 删除会话
-export async function deleteConversation(conversationId) {
+// 删除会话（带用户权限验证）
+export async function deleteConversation(conversationId, userId = null) {
   try {
+    // 先验证会话是否属于该用户
+    let checkQuery;
+    let checkParams;
+    
+    if (userId) {
+      checkQuery = 'SELECT id FROM conversations WHERE id = $1 AND user_id = $2';
+      checkParams = [conversationId, userId];
+    } else {
+      checkQuery = 'SELECT id FROM conversations WHERE id = $1 AND user_id IS NULL';
+      checkParams = [conversationId];
+    }
+    
+    const checkResult = await pool.query(checkQuery, checkParams);
+    if (checkResult.rows.length === 0) {
+      throw new Error('会话不存在或无权限删除');
+    }
+    
     // 先删除关联的消息
     const deleteMessagesQuery = 'DELETE FROM messages WHERE conversation_id = $1';
     await pool.query(deleteMessagesQuery, [conversationId]);
@@ -145,11 +191,34 @@ export async function deleteConversation(conversationId) {
   }
 }
 
+// 验证会话是否属于用户
+export async function verifyConversationOwnership(conversationId, userId = null) {
+  try {
+    let query;
+    let params;
+    
+    if (userId) {
+      query = 'SELECT id FROM conversations WHERE id = $1 AND user_id = $2';
+      params = [conversationId, userId];
+    } else {
+      query = 'SELECT id FROM conversations WHERE id = $1 AND user_id IS NULL';
+      params = [conversationId];
+    }
+    
+    const result = await pool.query(query, params);
+    return result.rows.length > 0;
+  } catch (error) {
+    console.error('验证会话所有权失败:', error);
+    throw error;
+  }
+}
+
 export default {
   saveMessage,
   getChatHistory,
   updateConversationTime,
   getAllConversations,
   createConversation,
-  deleteConversation
+  deleteConversation,
+  verifyConversationOwnership
 };

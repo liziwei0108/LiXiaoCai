@@ -3,6 +3,7 @@ import express from 'express';
 import cors from 'cors';
 import config from './config/index.js';
 import chatRoutes from './routes/chatRoutes.js';
+import authRoutes from './routes/authRoutes.js';
 
 const app = express();
 const port = config.server.port;
@@ -10,6 +11,7 @@ const port = config.server.port;
 app.use(cors());
 app.use(express.json());
 
+app.use('/api/auth', authRoutes);
 app.use('/api', chatRoutes);
 
 // 启动服务器

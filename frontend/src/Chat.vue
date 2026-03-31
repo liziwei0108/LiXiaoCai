@@ -2,6 +2,36 @@
   <div class="chat-layout">
     <!-- 侧边栏 -->
     <aside class="sidebar" :class="{ collapsed: isSidebarCollapsed }">
+      <!-- 用户信息区域 -->
+      <div class="user-section">
+        <div class="user-info" v-if="authStore.isLoggedIn">
+          <div class="user-avatar">
+            {{ authStore.userInfo?.nickname?.[0] || '👤' }}
+          </div>
+          <div class="user-details">
+            <span class="user-name">{{ authStore.userInfo?.nickname || '用户' }}</span>
+            <span class="user-email">{{ authStore.userInfo?.email }}</span>
+          </div>
+          <button class="logout-btn" @click="handleLogout" title="退出登录">
+            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </button>
+        </div>
+        <div class="user-info guest" v-else>
+          <div class="user-avatar">👤</div>
+          <div class="user-details">
+            <span class="user-name">游客</span>
+            <span class="user-email">登录后同步数据</span>
+          </div>
+          <button class="login-btn" @click="showAuthModal = true" title="登录/注册">
+            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4M10 17l5-5-5-5M13.8 12H3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+
       <div class="sidebar-header">
         <button class="new-chat-btn" @click="createNewConversation">
           <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -67,6 +97,12 @@
       @cancel="cancelDelete"
     />
 
+    <!-- 登录/注册弹窗 -->
+    <AuthModal
+      v-model:visible="showAuthModal"
+      @success="handleAuthSuccess"
+    />
+
     <!-- 主聊天区域 -->
     <div class="chat-app" :class="{ 'sidebar-collapsed': isSidebarCollapsed }">
       <header class="chat-header">
@@ -90,9 +126,6 @@
       <main class="chat-main">
         <div class="messages-wrapper">
           <div v-if="!currentConversationId && messages.length === 0" class="welcome-section">
-            <div class="welcome-avatar">
-              <img src="/yuanbao.png" alt="财咪" class="avatar-img" />
-            </div>
             <h2 class="welcome-title">你好呀！我是财咪~ 🐱</h2>
             <p class="welcome-desc">一只懂理财的小猫咪，让我帮你管理财富吧！</p>
             <p class="welcome-hint">直接在下方输入问题开始聊天~</p>
@@ -195,9 +228,15 @@
 
 <script setup>
 import { watch, ref, nextTick, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { marked } from 'marked'
 import hljs from 'highlight.js'
 import ConfirmModal from './components/ConfirmModal.vue'
+import AuthModal from './components/AuthModal.vue'
+import { useAuthStore } from './stores/auth.js'
+
+const router = useRouter()
+const authStore = useAuthStore()
 
 marked.setOptions({
   highlight: (code, lang) => {
@@ -229,6 +268,20 @@ const deleteTargetId = ref('')
 const deleteModalTitle = ref('删除对话')
 const deleteModalContent = ref('确定要删除这个对话吗？删除后无法恢复哦~')
 
+// 登录/注册弹窗状态
+const showAuthModal = ref(false)
+
+// 获取请求头（包含认证信息）
+const getAuthHeaders = () => {
+  const headers = {
+    'Content-Type': 'application/json'
+  }
+  if (authStore.token) {
+    headers['Authorization'] = `Bearer ${authStore.token}`
+  }
+  return headers
+}
+
 // 切换思考过程的展开/折叠
 const toggleReasoning = (messageId) => {
   if (expandedReasoning.value.has(messageId)) {
@@ -249,7 +302,9 @@ const isReasoningExpanded = (messageId) => {
 // 获取会话列表
 const fetchConversations = async () => {
   try {
-    const response = await fetch('/api/conversations')
+    const response = await fetch('/api/conversations', {
+      headers: getAuthHeaders()
+    })
     if (response.ok) {
       const data = await response.json()
       conversations.value = data
@@ -264,7 +319,9 @@ const fetchHistoryById = async (conversationId) => {
   if (!conversationId) return
   
   try {
-    const response = await fetch(`/api/history?conversationId=${conversationId}`)
+    const response = await fetch(`/api/history?conversationId=${conversationId}`, {
+      headers: getAuthHeaders()
+    })
     if (response.ok) {
       const history = await response.json()
       messages.value = history
@@ -279,7 +336,7 @@ const createNewConversation = async () => {
   try {
     const response = await fetch('/api/conversations', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' }
+      headers: getAuthHeaders()
     })
     if (response.ok) {
       const newConversation = await response.json()
@@ -315,7 +372,8 @@ const confirmDelete = async () => {
   
   try {
     const response = await fetch(`/api/conversations/${deleteTargetId.value}`, {
-      method: 'DELETE'
+      method: 'DELETE',
+      headers: getAuthHeaders()
     })
     if (response.ok) {
       conversations.value = conversations.value.filter(c => c.id !== deleteTargetId.value)
@@ -367,6 +425,19 @@ const formatTime = (timeStr) => {
   return date.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' })
 }
 
+// 登出
+const handleLogout = async () => {
+  await authStore.logout()
+  // 刷新页面以清除当前会话状态
+  window.location.reload()
+}
+
+// 登录/注册成功
+const handleAuthSuccess = () => {
+  // 刷新页面以同步用户数据
+  window.location.reload()
+}
+
 const sendMessage = async (text) => {
   if (!text.trim() || isLoading.value || !currentConversationId.value) return
 
@@ -384,9 +455,7 @@ const sendMessage = async (text) => {
   try {
     const response = await fetch('/api/chat', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: getAuthHeaders(),
       body: JSON.stringify({
         messages: [{ role: 'user', content: text }],
         conversationId: currentConversationId.value
@@ -560,6 +629,9 @@ const renderMarkdown = (text) => {
 }
 
 onMounted(async () => {
+  // 初始化认证状态
+  await authStore.init()
+  // 获取会话列表
   await fetchConversations()
 })
 </script>
@@ -593,26 +665,108 @@ onMounted(async () => {
   overflow: hidden;
 }
 
-/* 侧边栏样式 */
-.sidebar {
-  width: 280px;
-  background: linear-gradient(180deg, #FFF8E7 0%, #FFEFC7 100%);
-  border-right: 2px solid var(--border-color);
+/* 用户信息区域 */
+.user-section {
+  padding: 16px;
+  border-bottom: 1px solid rgba(255, 179, 71, 0.2);
+}
+
+.user-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.6);
+  border-radius: 12px;
+  border: 1px solid rgba(255, 179, 71, 0.15);
+}
+
+.user-info.guest {
+  background: rgba(255, 255, 255, 0.4);
+}
+
+.user-avatar {
+  width: 40px;
+  height: 40px;
+  background: linear-gradient(135deg, #ff8c42 0%, #ff6b35 100%);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  flex-shrink: 0;
+}
+
+.user-details {
+  flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
+  gap: 2px;
+}
+
+.user-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #333;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.user-email {
+  font-size: 12px;
+  color: #999;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.logout-btn,
+.login-btn {
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: rgba(255, 140, 66, 0.1);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: #ff8c42;
   transition: all 0.3s ease;
   flex-shrink: 0;
 }
 
+.logout-btn:hover,
+.login-btn:hover {
+  background: rgba(255, 140, 66, 0.2);
+}
+
+.logout-btn svg,
+.login-btn svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* 侧边栏样式 */
+.sidebar {
+  width: 280px;
+  background: linear-gradient(180deg, #FFF8E7 0%, #FFEFC7 100%);
+  border-right: 1px solid #FFE4B5;
+  display: flex;
+  flex-direction: column;
+  transition: width 0.3s ease;
+  overflow: hidden;
+}
+
 .sidebar.collapsed {
   width: 0;
-  overflow: hidden;
   border-right: none;
 }
 
 .sidebar-header {
   padding: 16px;
-  border-bottom: 1px solid var(--border-color);
   display: flex;
   gap: 8px;
   align-items: center;
@@ -624,8 +778,8 @@ onMounted(async () => {
   align-items: center;
   justify-content: center;
   gap: 8px;
-  padding: 12px 16px;
-  background: linear-gradient(135deg, #FFB347 0%, #FF9F1C 100%);
+  padding: 12px;
+  background: linear-gradient(135deg, #ff8c42 0%, #ff6b35 100%);
   color: white;
   border: none;
   border-radius: 12px;
@@ -633,12 +787,12 @@ onMounted(async () => {
   font-weight: 600;
   cursor: pointer;
   transition: all 0.3s ease;
-  box-shadow: 0 4px 12px rgba(255, 179, 71, 0.3);
+  box-shadow: 0 2px 8px rgba(255, 140, 66, 0.3);
 }
 
 .new-chat-btn:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(255, 179, 71, 0.4);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(255, 140, 66, 0.4);
 }
 
 .new-chat-btn svg {
@@ -647,22 +801,22 @@ onMounted(async () => {
 }
 
 .collapse-btn {
-  width: 36px;
-  height: 36px;
+  width: 40px;
+  height: 40px;
   display: flex;
   align-items: center;
   justify-content: center;
   background: rgba(255, 255, 255, 0.6);
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
+  border: 1px solid rgba(255, 179, 71, 0.2);
+  border-radius: 10px;
   cursor: pointer;
+  color: #666;
   transition: all 0.3s ease;
-  color: var(--text-secondary);
 }
 
 .collapse-btn:hover {
-  background: white;
-  color: var(--accent-dark);
+  background: rgba(255, 255, 255, 0.9);
+  color: #ff8c42;
 }
 
 .collapse-btn svg {
@@ -673,43 +827,39 @@ onMounted(async () => {
 .conversation-list {
   flex: 1;
   overflow-y: auto;
-  padding: 8px;
+  padding: 0 12px 12px;
 }
 
 .empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
   padding: 40px 20px;
+  text-align: center;
 }
 
 .empty-text {
+  color: #999;
   font-size: 14px;
-  color: #C9A86C;
-  font-weight: 500;
 }
 
 .conversation-item {
   display: flex;
   align-items: center;
-  gap: 12px;
   padding: 12px;
   margin-bottom: 4px;
-  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.5);
+  border: 1px solid transparent;
+  border-radius: 10px;
   cursor: pointer;
-  transition: all 0.2s ease;
-  position: relative;
+  transition: all 0.3s ease;
 }
 
 .conversation-item:hover {
-  background: rgba(255, 255, 255, 0.6);
+  background: rgba(255, 255, 255, 0.8);
+  border-color: rgba(255, 179, 71, 0.3);
 }
 
 .conversation-item.active {
-  background: white;
-  box-shadow: 0 2px 8px rgba(255, 179, 71, 0.15);
-  border-left: 3px solid var(--accent-color);
+  background: rgba(255, 140, 66, 0.1);
+  border-color: rgba(255, 140, 66, 0.3);
 }
 
 .conv-info {
@@ -720,21 +870,21 @@ onMounted(async () => {
 .conv-title {
   font-size: 14px;
   font-weight: 500;
-  color: var(--text-primary);
+  color: #333;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  margin-bottom: 4px;
 }
 
 .conv-time {
   font-size: 12px;
-  color: var(--text-tertiary);
-  margin-top: 2px;
+  color: #999;
 }
 
 .delete-btn {
-  width: 24px;
-  height: 24px;
+  width: 28px;
+  height: 28px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -742,9 +892,9 @@ onMounted(async () => {
   border: none;
   border-radius: 6px;
   cursor: pointer;
+  color: #999;
   opacity: 0;
-  transition: all 0.2s ease;
-  color: var(--text-tertiary);
+  transition: all 0.3s ease;
 }
 
 .conversation-item:hover .delete-btn {
@@ -752,37 +902,44 @@ onMounted(async () => {
 }
 
 .delete-btn:hover {
-  background: rgba(255, 100, 100, 0.1);
-  color: #ff6464;
+  background: rgba(255, 77, 79, 0.1);
+  color: #ff4d4f;
 }
 
 .delete-btn svg {
-  width: 14px;
-  height: 14px;
+  width: 16px;
+  height: 16px;
 }
 
-/* 悬浮按钮样式 */
+/* 悬浮按钮 */
 .floating-buttons {
   position: fixed;
-  top: 16px;
-  left: 16px;
+  left: 20px;
+  top: 20px;
+  z-index: 100;
   display: flex;
   flex-direction: column;
   gap: 12px;
-  z-index: 1000;
 }
 
 .fab {
   width: 48px;
   height: 48px;
-  border-radius: 50%;
-  border: none;
-  cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
+  background: white;
+  border: 1px solid #FFE4B5;
+  border-radius: 12px;
+  cursor: pointer;
+  color: #ff8c42;
+  box-shadow: 0 2px 12px rgba(255, 140, 66, 0.15);
   transition: all 0.3s ease;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.fab:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(255, 140, 66, 0.25);
 }
 
 .fab svg {
@@ -790,95 +947,34 @@ onMounted(async () => {
   height: 22px;
 }
 
-.expand-btn {
-  background: white;
-  color: var(--text-secondary);
-}
-
-.expand-btn:hover {
-  background: var(--bg-secondary);
-  color: var(--accent-dark);
-  transform: scale(1.1);
-}
-
-.new-btn {
-  background: linear-gradient(135deg, #FFB347 0%, #FF9F1C 100%);
-  color: white;
-}
-
-.new-btn:hover {
-  transform: scale(1.1);
-  box-shadow: 0 6px 20px rgba(255, 179, 71, 0.4);
-}
-
 /* 主聊天区域 */
 .chat-app {
   flex: 1;
-  height: 100vh;
   display: flex;
   flex-direction: column;
-  background: linear-gradient(135deg, #FFFEF5 0%, #FFF8E7 50%, #FFF5DC 100%);
+  background: linear-gradient(135deg, #FFFEF5 0%, #FFF8E7 100%);
   position: relative;
-  overflow: hidden;
   transition: margin-left 0.3s ease;
 }
 
-.decoration-left, .decoration-right {
-  position: fixed;
-  top: 50%;
-  transform: translateY(-50%);
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-  opacity: 0.15;
-  pointer-events: none;
-  z-index: 0;
+.chat-app.sidebar-collapsed {
+  margin-left: 0;
 }
 
-.decoration-left {
-  left: 10px;
-}
-
-.decoration-right {
-  right: 10px;
-}
-
-.decoration-left .star, .decoration-right .star,
-.decoration-left .paw, .decoration-right .paw {
-  font-size: 24px;
-  animation: float 3s ease-in-out infinite;
-}
-
-.decoration-left .star:nth-child(1) { animation-delay: 0s; }
-.decoration-left .star:nth-child(2) { animation-delay: 0.5s; }
-.decoration-left .paw:nth-child(3) { animation-delay: 1s; }
-
-.decoration-right .star:nth-child(1) { animation-delay: 0.3s; }
-.decoration-right .star:nth-child(2) { animation-delay: 0.8s; }
-.decoration-right .paw:nth-child(3) { animation-delay: 1.2s; }
-
-@keyframes float {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-10px); }
-}
-
+/* 头部 */
 .chat-header {
-  position: sticky;
-  top: 0;
-  z-index: 100;
-  background: linear-gradient(180deg, rgba(255,254,245,0.98) 0%, rgba(255,248,231,0.95) 100%);
-  backdrop-filter: blur(20px);
-  border-bottom: 2px solid var(--border-color);
-  box-shadow: 0 4px 20px rgba(255, 179, 71, 0.1);
+  padding: 16px 24px;
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid rgba(255, 228, 181, 0.5);
 }
 
 .header-content {
   max-width: 900px;
   margin: 0 auto;
-  padding: 14px 20px;
   display: flex;
-  justify-content: space-between;
   align-items: center;
+  justify-content: space-between;
 }
 
 .logo {
@@ -888,17 +984,20 @@ onMounted(async () => {
 }
 
 .logo-avatar {
-  width: 48px;
-  height: 48px;
+  width: 44px;
+  height: 44px;
+  background: linear-gradient(135deg, #ff8c42 0%, #ff6b35 100%);
   border-radius: 50%;
-  background: transparent;
-  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 8px rgba(255, 140, 66, 0.3);
 }
 
-.logo-avatar svg, .logo-avatar .avatar-img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
+.logo-avatar .avatar-img {
+  width: 32px;
+  height: 32px;
+  object-fit: contain;
 }
 
 .logo-text-wrap {
@@ -909,16 +1008,13 @@ onMounted(async () => {
 .logo-text {
   font-size: 20px;
   font-weight: 700;
-  color: var(--text-primary);
-  background: linear-gradient(135deg, #FF9F1C 0%, #FFB347 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  color: #ff8c42;
+  line-height: 1.2;
 }
 
 .logo-subtext {
   font-size: 12px;
-  color: var(--text-tertiary);
+  color: #999;
 }
 
 .header-status {
@@ -926,141 +1022,163 @@ onMounted(async () => {
   align-items: center;
   gap: 8px;
   padding: 8px 16px;
-  background: linear-gradient(135deg, #FFF8E7 0%, #FFEFC7 100%);
-  border: 1px solid var(--border-color);
-  border-radius: 24px;
-  box-shadow: var(--shadow);
+  background: rgba(255, 140, 66, 0.1);
+  border-radius: 20px;
 }
 
 .status-paw {
-  font-size: 16px;
-  animation: pawTap 0.5s ease-in-out infinite;
+  width: 8px;
+  height: 8px;
+  background: #ff8c42;
+  border-radius: 50%;
+  animation: pulse 1.5s ease-in-out infinite;
 }
 
-@keyframes pawTap {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.2); }
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.5;
+    transform: scale(0.8);
+  }
 }
 
 .status-text {
-  font-size: 13px;
-  color: var(--accent-dark);
-  font-weight: 600;
+  font-size: 14px;
+  color: #ff8c42;
 }
 
+/* 主内容区 */
 .chat-main {
   flex: 1;
   overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
-  position: relative;
-  z-index: 1;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
 }
 
 .messages-wrapper {
   max-width: 900px;
   margin: 0 auto;
-  padding: 24px 20px 120px;
-}
-
-.welcome-section {
+  width: 100%;
+  flex: 1;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 40px 20px;
+}
+
+/* 欢迎区域 */
+.welcome-section {
   text-align: center;
+  padding: 60px 20px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
 }
 
 .welcome-avatar {
-  width: 120px;
-  height: 120px;
-  margin-bottom: 24px;
-  animation: wiggle 2s ease-in-out infinite;
+  width: 100px;
+  height: 100px;
+  margin: 0 auto 24px;
+  background: linear-gradient(135deg, #ff8c42 0%, #ff6b35 100%);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 20px rgba(255, 140, 66, 0.3);
+  animation: bounce 2s ease-in-out infinite;
 }
 
-@keyframes wiggle {
-  0%, 100% { transform: rotate(-3deg); }
-  50% { transform: rotate(3deg); }
+@keyframes bounce {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
 }
 
-.welcome-avatar svg, .welcome-avatar .avatar-img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  filter: drop-shadow(0 8px 20px rgba(255, 179, 71, 0.3));
+.welcome-avatar .avatar-img {
+  width: 70px;
+  height: 70px;
+  object-fit: contain;
 }
 
 .welcome-title {
-  font-size: 26px;
+  font-size: 28px;
   font-weight: 700;
-  color: var(--text-primary);
-  margin: 0 0 12px;
-}
-
-.welcome-title span {
-  display: inline-block;
+  color: #333;
+  margin-bottom: 12px;
 }
 
 .welcome-desc {
-  font-size: 15px;
-  color: var(--text-secondary);
-  margin: 0 0 12px;
-  max-width: 320px;
+  font-size: 16px;
+  color: #666;
+  margin-bottom: 8px;
 }
 
 .welcome-hint {
-  font-size: 13px;
-  color: var(--accent-dark);
-  margin: 0 0 28px;
-  padding: 8px 16px;
-  background: rgba(255, 179, 71, 0.1);
-  border-radius: 20px;
+  font-size: 14px;
+  color: #999;
+  margin-bottom: 32px;
 }
 
 .quick-questions {
   display: flex;
   flex-wrap: wrap;
-  gap: 12px;
   justify-content: center;
-  max-width: 480px;
+  gap: 12px;
+  max-width: 600px;
+  margin: 0 auto;
 }
 
 .quick-btn {
-  padding: 12px 20px;
-  background: linear-gradient(135deg, #FFFFFF 0%, #FFF8E7 100%);
-  border: 2px solid var(--border-color);
-  border-radius: 20px;
-  font-size: 14px;
-  color: var(--text-secondary);
-  cursor: pointer;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
+  padding: 12px 20px;
+  background: white;
+  border: 1px solid #FFE4B5;
+  border-radius: 24px;
+  font-size: 14px;
+  color: #666;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 8px rgba(255, 140, 66, 0.1);
 }
 
 .quick-btn:hover {
-  background: linear-gradient(135deg, #FFF8E7 0%, #FFEFC7 100%);
-  color: var(--accent-dark);
-  border-color: var(--accent-color);
+  background: rgba(255, 140, 66, 0.1);
+  border-color: #ff8c42;
+  color: #ff8c42;
   transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(255, 179, 71, 0.25);
+  box-shadow: 0 4px 12px rgba(255, 140, 66, 0.2);
 }
 
 .btn-icon {
   font-size: 16px;
 }
 
+/* 消息样式 */
 .message-item {
   display: flex;
   gap: 12px;
   margin-bottom: 20px;
-  animation: slideIn 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  animation: fadeIn 0.3s ease;
 }
 
-@keyframes slideIn {
-  from { opacity: 0; transform: translateY(20px) scale(0.95); }
-  to { opacity: 1; transform: translateY(0) scale(1); }
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .message-item.user {
@@ -1068,68 +1186,47 @@ onMounted(async () => {
 }
 
 .message-avatar {
-  width: 44px;
-  height: 44px;
+  width: 36px;
+  height: 36px;
+  background: linear-gradient(135deg, #ff8c42 0%, #ff6b35 100%);
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
-.message-avatar.user {
-  background: linear-gradient(135deg, #FFE066 0%, #FFB347 100%);
-}
-
-.message-avatar.assistant {
-  background: linear-gradient(135deg, #FFF8E7 0%, #FFE4B5 100%);
-  border: 2px solid var(--border-color);
-}
-
-.message-avatar svg, .message-avatar .avatar-img {
-  width: 36px;
-  height: 36px;
-  object-fit: cover;
-}
-
-.loading-avatar {
-  animation: pulse 1s ease-in-out infinite;
-}
-
-@keyframes pulse {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.05); }
+.message-avatar .avatar-img {
+  width: 26px;
+  height: 26px;
+  object-fit: contain;
 }
 
 .message-content {
-  max-width: 85%;
-  padding: 16px;
-  border-radius: 24px;
+  max-width: 80%;
+  padding: 14px 18px;
+  border-radius: 18px;
   line-height: 1.6;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
 }
 
 .message-item.user .message-content {
-  background: linear-gradient(135deg, #FFE4B5 0%, #FFD699 100%);
-  color: var(--user-bubble-text);
-  border-top-right-radius: 4px;
-  border: none;
+  background: linear-gradient(135deg, #ff8c42 0%, #ff6b35 100%);
+  color: white;
+  border-bottom-right-radius: 4px;
 }
 
 .message-item.assistant .message-content {
-  background: linear-gradient(135deg, #FFFFFF 0%, #FFFEF5 100%);
-  color: var(--text-primary);
-  border-top-left-radius: 4px;
-  border: 1px solid var(--assistant-border);
+  background: white;
+  border: 1px solid #FFE4B5;
+  border-bottom-left-radius: 4px;
 }
 
+/* 思考过程 */
 .reasoning-section {
   margin-bottom: 12px;
+  background: rgba(255, 140, 66, 0.05);
   border-radius: 12px;
   overflow: hidden;
-  background: rgba(255, 248, 231, 0.8);
-  border: 1px solid var(--border-color);
 }
 
 .reasoning-header {
@@ -1138,13 +1235,12 @@ onMounted(async () => {
   gap: 8px;
   padding: 10px 14px;
   cursor: pointer;
-  background: rgba(255, 239, 199, 0.5);
-  transition: all 0.2s ease;
   user-select: none;
+  transition: background 0.3s ease;
 }
 
 .reasoning-header:hover {
-  background: rgba(255, 239, 199, 0.8);
+  background: rgba(255, 140, 66, 0.1);
 }
 
 .reasoning-icon {
@@ -1152,46 +1248,36 @@ onMounted(async () => {
 }
 
 .reasoning-title {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--accent-dark);
   flex: 1;
+  font-size: 13px;
+  font-weight: 500;
+  color: #ff8c42;
 }
 
 .reasoning-toggle {
-  font-size: 11px;
-  color: var(--text-tertiary);
-  transition: transform 0.2s ease;
+  font-size: 12px;
+  color: #999;
 }
 
 .reasoning-content {
-  padding: 14px;
+  padding: 12px 14px;
   font-size: 13px;
-  color: var(--text-secondary);
-  line-height: 1.7;
-  border-top: 1px dashed var(--border-color);
+  color: #666;
+  border-top: 1px solid rgba(255, 140, 66, 0.1);
+  background: rgba(255, 255, 255, 0.5);
 }
 
 .reasoning-content :deep(p) {
-  margin: 0 0 10px;
+  margin: 0 0 8px;
 }
 
 .reasoning-content :deep(p:last-child) {
   margin-bottom: 0;
 }
 
-.reasoning-content :deep(code) {
-  background: rgba(255, 179, 71, 0.15);
-  padding: 2px 6px;
-  border-radius: 4px;
-  font-family: 'Courier New', monospace;
-  font-size: 12px;
-  color: var(--accent-dark);
-}
-
+/* 消息文本 */
 .message-text {
   font-size: 15px;
-  line-height: 1.7;
 }
 
 .message-text :deep(p) {
@@ -1202,104 +1288,37 @@ onMounted(async () => {
   margin-bottom: 0;
 }
 
-.message-text :deep(code) {
-  background: rgba(255, 179, 71, 0.15);
-  padding: 2px 6px;
-  border-radius: 4px;
-  font-family: 'Courier New', monospace;
-  font-size: 14px;
-  color: var(--accent-dark);
-}
-
 .message-text :deep(pre) {
-  background: #2d2d2d;
-  padding: 16px;
-  border-radius: 12px;
+  background: #f5f5f5;
+  padding: 12px;
+  border-radius: 8px;
   overflow-x: auto;
   margin: 12px 0;
 }
 
-.message-text :deep(pre code) {
-  background: none;
-  padding: 0;
-  color: #f8f8f2;
+.message-text :deep(code) {
+  font-family: 'Fira Code', monospace;
   font-size: 13px;
-  line-height: 1.6;
 }
 
-.message-text :deep(ul), .message-text :deep(ol) {
-  margin: 12px 0;
-  padding-left: 24px;
-}
-
-.message-text :deep(li) {
-  margin-bottom: 6px;
-}
-
-.message-text :deep(h1), .message-text :deep(h2), .message-text :deep(h3) {
-  margin: 16px 0 12px;
-  color: var(--text-primary);
-}
-
-.message-text :deep(h1) { font-size: 20px; }
-.message-text :deep(h2) { font-size: 18px; }
-.message-text :deep(h3) { font-size: 16px; }
-
-.message-text :deep(blockquote) {
-  border-left: 4px solid var(--accent-color);
-  padding-left: 16px;
-  margin: 12px 0;
-  color: var(--text-secondary);
-  font-style: italic;
-}
-
-.message-text :deep(a) {
-  color: var(--accent-dark);
-  text-decoration: none;
-  border-bottom: 1px solid var(--accent-color);
-}
-
-.message-text :deep(a:hover) {
-  border-bottom: 2px solid var(--accent-dark);
-}
-
-.message-text :deep(table) {
-  width: 100%;
-  border-collapse: collapse;
-  margin: 12px 0;
-  font-size: 14px;
-}
-
-.message-text :deep(th), .message-text :deep(td) {
-  padding: 10px 14px;
-  border: 1px solid var(--border-color);
-  text-align: left;
-}
-
-.message-text :deep(th) {
-  background: var(--bg-secondary);
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
-.message-text :deep(tr:nth-child(even)) {
-  background: rgba(255, 248, 231, 0.5);
+.message-text :deep(p code) {
+  background: rgba(255, 140, 66, 0.1);
+  padding: 2px 6px;
+  border-radius: 4px;
+  color: #ff8c42;
 }
 
 .thinking-text {
-  color: var(--text-tertiary);
+  color: #999;
   font-style: italic;
 }
 
+/* 加载动画 */
 .loading-content {
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: flex-start;
   gap: 12px;
-  padding: 20px 24px;
-  background: linear-gradient(135deg, #FFFFFF 0%, #FFFEF5 100%);
-  border: 1px solid var(--assistant-border);
-  min-width: 120px;
 }
 
 .loading-bubbles {
@@ -1310,49 +1329,65 @@ onMounted(async () => {
 .bubble {
   width: 10px;
   height: 10px;
-  background: linear-gradient(135deg, #FFB347 0%, #FF9F1C 100%);
+  background: #ff8c42;
   border-radius: 50%;
   animation: bubble 1.4s ease-in-out infinite;
 }
 
-.bubble:nth-child(1) { animation-delay: 0s; }
-.bubble:nth-child(2) { animation-delay: 0.2s; }
-.bubble:nth-child(3) { animation-delay: 0.4s; }
+.bubble:nth-child(1) {
+  animation-delay: 0s;
+}
+
+.bubble:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.bubble:nth-child(3) {
+  animation-delay: 0.4s;
+}
 
 @keyframes bubble {
-  0%, 100% { transform: translateY(0); opacity: 0.4; }
-  50% { transform: translateY(-8px); opacity: 1; }
+  0%, 100% {
+    transform: scale(0.6);
+    opacity: 0.4;
+  }
+  50% {
+    transform: scale(1);
+    opacity: 1;
+  }
 }
 
 .loading-text-wrap {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
 }
 
 .loading-text {
-  font-size: 13px;
-  color: var(--text-secondary);
+  font-size: 14px;
+  color: #999;
 }
 
 .loading-cat {
   font-size: 14px;
-  animation: catBounce 0.6s ease-in-out infinite;
+  animation: wiggle 0.5s ease-in-out infinite;
 }
 
-@keyframes catBounce {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-3px); }
+@keyframes wiggle {
+  0%, 100% {
+    transform: rotate(-5deg);
+  }
+  50% {
+    transform: rotate(5deg);
+  }
 }
 
+/* 输入区域 */
 .chat-footer {
-  position: sticky;
-  bottom: 0;
-  z-index: 100;
-  background: linear-gradient(0deg, rgba(255,254,245,0.98) 0%, rgba(255,248,231,0.95) 100%);
-  backdrop-filter: blur(20px);
-  border-top: 2px solid var(--border-color);
-  padding: 16px 20px 20px;
+  padding: 20px 24px;
+  background: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(10px);
+  border-top: 1px solid rgba(255, 228, 181, 0.5);
 }
 
 .input-form {
@@ -1362,122 +1397,213 @@ onMounted(async () => {
 
 .input-wrapper {
   display: flex;
-  align-items: flex-end;
   gap: 12px;
+  align-items: flex-end;
   background: white;
-  border: 2px solid var(--border-color);
-  border-radius: 24px;
-  padding: 12px 16px;
-  box-shadow: var(--shadow);
+  border: 2px solid #FFE4B5;
+  border-radius: 20px;
+  padding: 8px 8px 8px 20px;
+  box-shadow: 0 2px 12px rgba(255, 140, 66, 0.1);
   transition: all 0.3s ease;
 }
 
 .input-wrapper:focus-within {
-  border-color: var(--accent-color);
-  box-shadow: 0 4px 24px rgba(255, 179, 71, 0.25);
+  border-color: #ff8c42;
+  box-shadow: 0 4px 16px rgba(255, 140, 66, 0.2);
 }
 
 .chat-input {
   flex: 1;
   border: none;
   background: transparent;
-  font-size: 16px;
-  color: var(--text-primary);
-  outline: none;
+  font-size: 15px;
+  line-height: 1.5;
   resize: none;
-  white-space: pre-wrap;
-  word-wrap: break-word;
-  min-height: 20px;
+  outline: none;
+  min-height: 24px;
   max-height: 120px;
-  overflow-y: auto;
+  padding: 8px 0;
+  color: #333;
 }
 
 .chat-input::placeholder {
-  color: var(--text-tertiary);
-}
-
-.chat-input:focus {
-  outline: none;
-}
-
-.chat-input:disabled {
-  cursor: not-allowed;
-  opacity: 0.6;
+  color: #bbb;
 }
 
 .send-btn {
-  background: none;
-  border: none;
-  cursor: pointer;
-  padding: 8px;
-  border-radius: 50%;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  width: 40px;
+  height: 40px;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--accent-color);
+  background: linear-gradient(135deg, #ff8c42 0%, #ff6b35 100%);
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  color: white;
+  transition: all 0.3s ease;
+  flex-shrink: 0;
 }
 
 .send-btn:hover:not(:disabled) {
-  background: linear-gradient(135deg, #FFF8E7 0%, #FFEFC7 100%);
-  transform: scale(1.1);
+  transform: scale(1.05);
+  box-shadow: 0 4px 12px rgba(255, 140, 66, 0.4);
 }
 
 .send-btn:disabled {
-  color: var(--text-tertiary);
+  opacity: 0.5;
   cursor: not-allowed;
 }
 
-.send-btn.sending {
-  animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+.send-btn svg {
+  width: 20px;
+  height: 20px;
 }
 
 .btn-loader {
   width: 20px;
   height: 20px;
-  border: 3px solid rgba(255, 179, 71, 0.3);
-  border-top-color: var(--accent-color);
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: white;
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .disclaimer {
   text-align: center;
   font-size: 12px;
-  color: var(--text-tertiary);
-  margin: 12px 0 0;
-  padding: 0 20px;
+  color: #bbb;
+  margin-top: 12px;
 }
 
-/* 响应式适配 */
+/* 装饰元素 */
+.decoration-left,
+.decoration-right {
+  position: fixed;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.decoration-left {
+  left: 20px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.decoration-right {
+  right: 20px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.decoration-left .star,
+.decoration-left .paw,
+.decoration-right .star,
+.decoration-right .paw {
+  display: block;
+  font-size: 24px;
+  margin: 40px 0;
+  opacity: 0.15;
+  animation: float 6s ease-in-out infinite;
+}
+
+.decoration-left .star:nth-child(2),
+.decoration-right .star:nth-child(2) {
+  animation-delay: 2s;
+}
+
+.decoration-left .paw,
+.decoration-right .paw {
+  animation-delay: 4s;
+}
+
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-20px) rotate(10deg);
+  }
+}
+
+/* 滚动条样式 */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 179, 71, 0.3);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 179, 71, 0.5);
+}
+
+/* 响应式 */
 @media (max-width: 768px) {
   .sidebar {
     position: fixed;
     left: 0;
     top: 0;
     bottom: 0;
-    z-index: 1001;
-    transform: translateX(0);
+    z-index: 200;
+    box-shadow: 2px 0 20px rgba(0, 0, 0, 0.1);
   }
-  
+
   .sidebar.collapsed {
     transform: translateX(-100%);
     width: 280px;
   }
-  
+
   .chat-app {
-    margin-left: 0;
+    margin-left: 0 !important;
   }
-  
+
   .floating-buttons {
-    top: auto;
-    bottom: 100px;
     left: 16px;
+    top: 16px;
+  }
+
+  .chat-header {
+    padding: 12px 16px;
+  }
+
+  .chat-main {
+    padding: 16px;
+  }
+
+  .chat-footer {
+    padding: 16px;
+  }
+
+  .message-content {
+    max-width: 90%;
+  }
+
+  .quick-questions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .quick-btn {
+    justify-content: center;
+  }
+
+  .decoration-left,
+  .decoration-right {
+    display: none;
   }
 }
 </style>
