@@ -16,9 +16,19 @@ async function generateEmbedding(text) {
   return response.data[0].embedding;
 }
 
-async function searchNotes(query, limit = 5) {
+async function searchNotes(query, userId = null, limit = 5) {
+  // 如果没有查询关键词，返回提示
+  if (!query || query.trim() === '') {
+    return '请提供搜索关键词';
+  }
+  
+  // 游客不能搜索笔记
+  if (!userId) {
+    return '请先登录后使用笔记库功能';
+  }
+  
   const embedding = await generateEmbedding(query);
-  const res = await searchNotesFromDb(embedding, limit);
+  const res = await searchNotesFromDb(embedding, userId, limit);
   return res;
 }
 
@@ -42,35 +52,27 @@ const tools = [
   },
 ];
 
-// 工具函数映射表
-const toolHandlers = {
-  searchNotes: async (args) => {
-    console.log(`开始使用searchNotes工具，检索笔记关键词: ${args.query}`);
-    const result = await searchNotes(args.query);
-    console.log(`工具返回结果:`, result);
-    return result;
-  },
-  // 内置工具 web_search 由模型自动执行，我们只需要记录
-  web_search: async (args) => {
-    console.log('web_search 是内置工具，由模型自动执行');
-    return '内置搜索工具已执行';
-  },
-};
-
 // 执行工具调用
-async function executeTool(functionCall) {
+async function executeTool(functionCall, userId = null) {
   const { name, arguments: argsStr, call_id } = functionCall;
   const args = JSON.parse(argsStr);
-  console.log(`调用工具 [${name}]，参数:`, args);
+  console.log(`调用工具 [${name}]，参数:`, args, '用户:', userId || '游客');
 
-  const handler = toolHandlers[name];
-  if (!handler) {
-    console.warn(`未找到工具处理器: ${name}`);
-    return `工具 ${name} 未实现`;
+  // 根据工具名称执行对应的处理函数
+  if (name === 'searchNotes') {
+    console.log(`开始使用searchNotes工具，检索笔记关键词: ${args.query}`);
+    const result = await searchNotes(args.query, userId);
+    console.log(`工具返回结果:`, result);
+    return result;
+  }
+  
+  if (name === 'web_search') {
+    console.log('web_search 是内置工具，由模型自动执行');
+    return '内置搜索工具已执行';
   }
 
-  const result = await handler(args);
-  return result;
+  console.warn(`未找到工具处理器: ${name}`);
+  return `工具 ${name} 未实现`;
 }
 
 // 发送文本数据到客户端
@@ -304,7 +306,7 @@ export async function streamChatResponse(messages, id, res, userId = null) {
       // 处理所有工具调用
       for (const fc of functionCalls) {
         // 执行工具
-        const toolResult = await executeTool(fc);
+        const toolResult = await executeTool(fc, userId);
 
         // 发送工具调用信息到客户端
         sendToolCall(res, fc, toolResult);

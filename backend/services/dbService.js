@@ -53,9 +53,9 @@ export async function updateConversationTime(conversationId) {
 }
 
 // 检索知识库，返回纯文本供模型使用
-export async function searchNotesFromDb(queryEmbedding, limit = 3) {
+export async function searchNotesFromDb(queryEmbedding, userId = null, limit = 3) {
   try {
-    console.log('开始检索笔记库');
+    console.log('开始检索笔记库，用户:', userId || '游客');
     
     // 确保 embedding 是数组格式
     const embeddingArray = Array.isArray(queryEmbedding) 
@@ -64,14 +64,26 @@ export async function searchNotesFromDb(queryEmbedding, limit = 3) {
         ? queryEmbedding.embedding 
         : [];
     
+    let query;
+    let params;
     
-    const query = `
-      SELECT note_date, content
-      FROM notes
-      ORDER BY embedding <=> $1::vector
-      LIMIT $2
-    `;
-    const res = await pool.query(query, [JSON.stringify(embeddingArray), limit]);
+    if (userId) {
+      // 登录用户：只搜索该用户的笔记
+      query = `
+        SELECT note_date, content
+        FROM notes
+        WHERE user_id = $3
+        ORDER BY embedding <=> $1::vector
+        LIMIT $2
+      `;
+      params = [JSON.stringify(embeddingArray), limit, userId];
+    } else {
+      // 游客：不搜索笔记（游客没有笔记）
+      console.log('游客用户，不搜索笔记');
+      return '请先登录后使用笔记库功能';
+    }
+    
+    const res = await pool.query(query, params);
     console.log('检索笔记库完成，共找到', res.rows.length, '条笔记');
     if (res.rows.length === 0) return '暂无符合要求的笔记';
     return res.rows.map(row => 

@@ -171,8 +171,26 @@
               <button class="quick-btn" @click="quickAsk('什么是复利？')">
                 <span class="btn-icon">🔄</span>什么是复利？
               </button>
-              <button class="quick-btn" @click="quickAsk('每月存多少钱合适？')">
-                <span class="btn-icon">🐟</span>每月存多少钱？
+              <button class="quick-btn" @click="quickAsk('查查我最新的投资笔记')">
+                <span class="btn-icon">�</span>查查我的投资笔记
+              </button>
+            </div>
+          </div>
+
+          <div v-else-if="currentConversationId && messages.length === 0" class="empty-chat-hint">
+            <p class="empty-hint-title">请输入你的问题~</p>
+            <div class="quick-questions">
+              <button class="quick-btn" @click="quickAsk('如何开始理财？')">
+                <span class="btn-icon">💰</span>如何开始理财？
+              </button>
+              <button class="quick-btn" @click="quickAsk('新手适合买什么基金？')">
+                <span class="btn-icon">📈</span>新手买什么基金？
+              </button>
+              <button class="quick-btn" @click="quickAsk('什么是复利？')">
+                <span class="btn-icon">🔄</span>什么是复利？
+              </button>
+              <button class="quick-btn" @click="quickAsk('查查我最新的投资笔记')">
+                <span class="btn-icon">�</span>查查我的投资笔记
               </button>
             </div>
           </div>
@@ -1208,6 +1226,24 @@ onMounted(async () => {
   font-size: 14px;
   color: #999;
   margin-bottom: 32px;
+}
+
+/* 空对话提示 */
+.empty-chat-hint {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 300px;
+  gap: 24px;
+}
+
+.empty-hint-title {
+  font-size: 18px;
+  color: #666;
+  text-align: center;
+  margin: 0;
 }
 
 .quick-questions {
