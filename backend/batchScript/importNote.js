@@ -2,28 +2,27 @@ import 'dotenv/config';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { embed } from 'ai';
-import { createOpenAI } from '@ai-sdk/openai';
+import OpenAI from 'openai';
 import pool from '../config/db.js';
 import config from '../config/index.js';
-
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const NOTES_DIR = 'D:/学习笔记本/my_notes/投资学习笔记';
 
-const openai = createOpenAI({
-  baseURL: 'https://api-inference.modelscope.cn/v1',
-  apiKey: process.env.DASHSCOPE_API_KEY,
+const client = new OpenAI({
+  baseURL: config.ai.baseURL,
+  apiKey: config.ai.apiKey,
 });
 
 async function generateEmbedding(text) {
-  const { embedding } = await embed({
-    model: openai.embedding(config.ai.embeddingModel),
-    value: text,
+  const response = await client.embeddings.create({
+    model: config.ai.embeddingModel,
+    input: text,
+    encoding_format: 'float'
   });
-  return embedding;
+  return response.data[0].embedding;
 }
 
 async function insertNote(inode, noteDate, noteType, relatedSymbols, content, embedding) {
@@ -64,13 +63,11 @@ async function processMarkdownFile(filePath) {
     const filename = path.basename(filePath, '.md');
     console.log(`\n处理文件: ${filename}`);
 
-    let noteDate = null;
     let noteType = null;
-    let relatedSymbols = null;
 
     const fileStats = fs.statSync(filePath);
     const inode = fileStats.ino;
-    noteDate = fileStats.mtime.toISOString().split('T')[0];
+    const noteDate = fileStats.mtime.toISOString().split('T')[0];
 
     const lines = content.split('\n');
     for (const line of lines) {
@@ -82,7 +79,7 @@ async function processMarkdownFile(filePath) {
     }
 
     const embedding = await generateEmbedding(content);
-    const id = await insertNote(inode, noteDate, noteType, relatedSymbols, content, embedding);
+    const id = await insertNote(inode, noteDate, noteType, null, content, embedding);
 
     console.log(`✓ 笔记已处理: ID=${id}, inode=${inode}, 文件=${filename}, 日期=${noteDate}`);
     return true;

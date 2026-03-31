@@ -22,7 +22,7 @@
           <div class="user-avatar">👤</div>
           <div class="user-details">
             <span class="user-name">游客</span>
-            <span class="user-email">登录后同步数据</span>
+            <span class="user-email"></span>
           </div>
           <button class="login-btn" @click="showAuthModal = true" title="登录/注册">
             <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -45,10 +45,24 @@
           </svg>
         </button>
       </div>
+
+      <!-- 我的笔记按钮 -->
+      <div class="notes-section">
+        <button class="notes-btn" @click="handleNotesClick">
+          <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <polyline points="14,2 14,8 20,8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <line x1="16" y1="13" x2="8" y2="13" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <line x1="16" y1="17" x2="8" y2="17" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <polyline points="10,9 9,9 8,9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <span>我的笔记库</span>
+        </button>
+      </div>
       
       <div class="conversation-list">
         <div v-if="conversations.length === 0" class="empty-state">
-          <span class="empty-text">暂无对话</span>
+          <span class="empty-text">{{ authStore.isLoggedIn ? '暂无对话' : '登录后保留对话历史' }}</span>
         </div>
         <div
           v-for="conv in conversations"
@@ -89,7 +103,6 @@
       v-model:visible="showDeleteModal"
       :title="deleteModalTitle"
       :content="deleteModalContent"
-      icon="🗑️"
       confirm-text="删除"
       cancel-text="取消"
       confirm-button-type="danger"
@@ -102,6 +115,25 @@
       v-model:visible="showAuthModal"
       @success="handleAuthSuccess"
     />
+
+    <!-- 笔记库登录提示弹窗 -->
+    <div v-if="showNotesLoginPrompt" class="modal-overlay" @click="showNotesLoginPrompt = false">
+      <div class="notes-login-modal" @click.stop>
+        <div class="notes-login-header">
+          <h3>我的笔记库</h3>
+          <button class="close-btn" @click="showNotesLoginPrompt = false">×</button>
+        </div>
+        <div class="notes-login-content">
+          <p class="notes-login-title">登录后才能使用笔记库哦</p>
+          <p class="notes-login-desc">
+            上传你的投资笔记，财咪会认真阅读并记住它们。当你询问持仓、策略相关问题时，财咪能结合你的笔记，给出更精准、更个性化的建议。
+          </p>
+          <button class="notes-login-btn" @click="showAuthModal = true; showNotesLoginPrompt = false">
+            立即登录
+          </button>
+        </div>
+      </div>
+    </div>
 
     <!-- 主聊天区域 -->
     <div class="chat-app" :class="{ 'sidebar-collapsed': isSidebarCollapsed }">
@@ -146,9 +178,6 @@
           </div>
 
           <div v-for="message in messages" :key="message.id" class="message-item" :class="message.role">
-            <div v-if="message.role === 'assistant'" class="message-avatar" :class="message.role">
-              <img src="/yuanbao.png" alt="财咪" class="avatar-img" />
-            </div>
             <div class="message-content">
               <div v-if="message.reasoning || message.parts?.find(p => p.type === 'reasoning')?.text" class="reasoning-section">
                 <div class="reasoning-header" @click="toggleReasoning(message.id)">
@@ -165,9 +194,6 @@
           </div>
 
           <div v-if="isLoading && !isStreaming" class="message-item assistant loading">
-            <div class="message-avatar assistant loading-avatar">
-              <img src="/yuanbao.png" alt="财咪" class="avatar-img" />
-            </div>
             <div class="message-content loading-content">
               <div class="loading-bubbles">
                 <span class="bubble"></span>
@@ -271,6 +297,9 @@ const deleteModalContent = ref('确定要删除这个对话吗？删除后无法
 // 登录/注册弹窗状态
 const showAuthModal = ref(false)
 
+// 笔记库登录提示弹窗状态
+const showNotesLoginPrompt = ref(false)
+
 // 获取请求头（包含认证信息）
 const getAuthHeaders = () => {
   const headers = {
@@ -333,6 +362,14 @@ const fetchHistoryById = async (conversationId) => {
 
 // 创建新会话
 const createNewConversation = async () => {
+  // 游客不创建会话，使用临时 ID
+  if (!authStore.isLoggedIn) {
+    currentConversationId.value = `guest_${Date.now()}`
+    messages.value = []
+    input.value = ''
+    return
+  }
+
   try {
     const response = await fetch('/api/conversations', {
       method: 'POST',
@@ -430,6 +467,16 @@ const handleLogout = async () => {
   await authStore.logout()
   // 刷新页面以清除当前会话状态
   window.location.reload()
+}
+
+// 处理笔记库按钮点击
+const handleNotesClick = () => {
+  if (!authStore.isLoggedIn) {
+    // 未登录，显示提示弹窗
+    showNotesLoginPrompt.value = true
+    return
+  }
+  router.push('/notes')
 }
 
 // 登录/注册成功
@@ -552,8 +599,10 @@ const sendMessage = async (text) => {
                 }
                 reasoningCompleted.value.add(lastMessage.id)
               }
-              // 刷新会话列表以更新时间
-              await fetchConversations()
+              // 只有登录用户才刷新会话列表
+              if (authStore.isLoggedIn) {
+                await fetchConversations()
+              }
             }
           } catch (e) {
             console.error('解析数据失败:', e)
@@ -631,8 +680,10 @@ const renderMarkdown = (text) => {
 onMounted(async () => {
   // 初始化认证状态
   await authStore.init()
-  // 获取会话列表
-  await fetchConversations()
+  // 只有登录用户才获取会话列表
+  if (authStore.isLoggedIn) {
+    await fetchConversations()
+  }
 })
 </script>
 
@@ -820,6 +871,39 @@ onMounted(async () => {
 }
 
 .collapse-btn svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* 笔记按钮区域 */
+.notes-section {
+  padding: 0 16px 12px;
+  border-bottom: 1px solid rgba(255, 179, 71, 0.2);
+}
+
+.notes-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px;
+  background: rgba(255, 140, 66, 0.1);
+  border: 1px solid rgba(255, 140, 66, 0.2);
+  border-radius: 10px;
+  cursor: pointer;
+  color: #ff8c42;
+  font-size: 14px;
+  font-weight: 500;
+  transition: all 0.3s ease;
+}
+
+.notes-btn:hover {
+  background: rgba(255, 140, 66, 0.2);
+  transform: translateY(-1px);
+}
+
+.notes-btn svg {
   width: 18px;
   height: 18px;
 }
@@ -1288,6 +1372,21 @@ onMounted(async () => {
   margin-bottom: 0;
 }
 
+/* 列表样式优化 */
+.message-text :deep(ul),
+.message-text :deep(ol) {
+  margin: 12px 0;
+  padding-left: 24px;
+}
+
+.message-text :deep(li) {
+  margin-bottom: 6px;
+}
+
+.message-text :deep(li:last-child) {
+  margin-bottom: 0;
+}
+
 .message-text :deep(pre) {
   background: #f5f5f5;
   padding: 12px;
@@ -1604,6 +1703,121 @@ onMounted(async () => {
   .decoration-left,
   .decoration-right {
     display: none;
+  }
+}
+
+/* 笔记库登录提示弹窗 */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  animation: fadeIn 0.2s ease;
+}
+
+.notes-login-modal {
+  background: white;
+  border-radius: 16px;
+  width: 90%;
+  max-width: 420px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+  animation: slideUp 0.3s ease;
+  overflow: hidden;
+}
+
+.notes-login-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 24px 16px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.notes-login-header h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: #333;
+}
+
+.notes-login-header .close-btn {
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: #f5f5f5;
+  border-radius: 50%;
+  font-size: 20px;
+  color: #666;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.notes-login-header .close-btn:hover {
+  background: #eee;
+  color: #333;
+}
+
+.notes-login-content {
+  padding: 24px;
+}
+
+.notes-login-title {
+  font-size: 16px;
+  font-weight: 500;
+  color: #333;
+  margin: 0 0 12px;
+  text-align: center;
+}
+
+.notes-login-desc {
+  font-size: 14px;
+  color: #666;
+  line-height: 1.7;
+  margin: 0 0 24px;
+  text-align: center;
+}
+
+.notes-login-btn {
+  width: 100%;
+  padding: 14px 24px;
+  background: linear-gradient(135deg, #ff8c42 0%, #ff6b35 100%);
+  border: none;
+  border-radius: 10px;
+  font-size: 15px;
+  font-weight: 500;
+  color: white;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.notes-login-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(255, 140, 66, 0.4);
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 </style>

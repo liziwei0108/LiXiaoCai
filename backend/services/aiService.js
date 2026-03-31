@@ -11,6 +11,7 @@ async function generateEmbedding(text) {
   const response = await openai.embeddings.create({
     model: config.ai.embeddingModel,
     input: text,
+    encoding_format: 'float'
   });
   return response.data[0].embedding;
 }
@@ -266,12 +267,12 @@ async function streamResponse(conversation, res) {
 }
 
 // 主函数：处理流式聊天响应
-export async function streamChatResponse(messages, id, res) {
+export async function streamChatResponse(messages, id, res, userId = null) {
   if (!id) {
     console.error('id 不能为空');
     throw new Error('id 不能为空');
   }
-  console.log('----获取会话id', id);
+  console.log('----获取会话id', id, userId ? `用户: ${userId}` : '游客');
 
   // 设置 SSE 响应头
   res.setHeader('Content-Type', 'text/event-stream');
@@ -334,17 +335,21 @@ export async function streamChatResponse(messages, id, res) {
     console.log('最终响应文本:', finalResponseText);
     console.log('最终思考过程:', finalReasoningText);
 
-    // 保存 AI 响应到数据库
-    try {
-      const assistantParts = [
-        { type: 'reasoning', text: finalReasoningText },
-        { type: 'text', text: finalResponseText }
-      ];
-      await saveMessage(id, 'assistant', finalResponseText, assistantParts);
-      await updateConversationTime(id);
-      console.log('AI 响应存储成功并更新会话时间');
-    } catch (error) {
-      console.error('存储 AI 响应失败:', error);
+    // 只有登录用户才保存 AI 响应到数据库
+    if (userId) {
+      try {
+        const assistantParts = [
+          { type: 'reasoning', text: finalReasoningText },
+          { type: 'text', text: finalResponseText }
+        ];
+        await saveMessage(id, 'assistant', finalResponseText, assistantParts);
+        await updateConversationTime(id);
+        console.log('AI 响应存储成功并更新会话时间');
+      } catch (error) {
+        console.error('存储 AI 响应失败:', error);
+      }
+    } else {
+      console.log('游客对话，不保存 AI 响应');
     }
   } catch (error) {
     console.error('流式响应错误:', error);

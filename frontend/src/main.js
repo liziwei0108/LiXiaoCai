@@ -2,9 +2,9 @@ import { createApp } from 'vue'
 import { createPinia } from 'pinia'
 import router from './router'
 import './style.css'
-import Chat from './Chat.vue'
+import App from './App.vue'
 
-const app = createApp(Chat)
+const app = createApp(App)
 const pinia = createPinia()
 
 app.use(pinia)

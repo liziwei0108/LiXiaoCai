@@ -175,7 +175,7 @@ const handleSubmit = async () => {
         isConfirmStep.value = true
       } else {
         // 其他错误（密码错误等）
-        error.value = result.message || '登录失败'
+        error.value = result.error || result.message || '登录失败'
       }
     } else {
       // 第二步：确认密码并注册

@@ -18,7 +18,8 @@ export async function handleChat(req, res) {
       return res.status(403).json({ error: '无权限访问该会话' });
     }
 
-    if (messages && messages.length > 0) {
+    // 只有登录用户才保存消息
+    if (userId && messages && messages.length > 0) {
       const lastUserMessage = messages[messages.length - 1];
       if (lastUserMessage.role === 'user') {
         await saveMessage(
@@ -30,10 +31,12 @@ export async function handleChat(req, res) {
       }
     }
 
-    await streamChatResponse(messages, conversationId, res);
+    await streamChatResponse(messages, conversationId, res, userId);
     
-    // 更新会话时间
-    await updateConversationTime(conversationId);
+    // 只有登录用户才更新会话时间
+    if (userId) {
+      await updateConversationTime(conversationId);
+    }
     
     console.log('----------流式响应完成----------');
   } catch (error) {

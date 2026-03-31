@@ -194,6 +194,11 @@ export async function deleteConversation(conversationId, userId = null) {
 // 验证会话是否属于用户
 export async function verifyConversationOwnership(conversationId, userId = null) {
   try {
+    // 游客的临时会话 ID 直接通过验证（格式：guest_时间戳）
+    if (!userId && conversationId.startsWith('guest_')) {
+      return true;
+    }
+    
     let query;
     let params;
     
