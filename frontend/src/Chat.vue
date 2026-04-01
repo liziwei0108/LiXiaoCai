@@ -172,7 +172,7 @@
                 <span class="btn-icon">🔄</span>什么是复利？
               </button>
               <button class="quick-btn" @click="quickAsk('查查我最新的投资笔记')">
-                <span class="btn-icon">�</span>查查我的投资笔记
+                <span class="btn-icon">📝</span>查查我的投资笔记
               </button>
             </div>
           </div>
@@ -190,7 +190,7 @@
                 <span class="btn-icon">🔄</span>什么是复利？
               </button>
               <button class="quick-btn" @click="quickAsk('查查我最新的投资笔记')">
-                <span class="btn-icon">�</span>查查我的投资笔记
+                <span class="btn-icon">📝</span>查查我的投资笔记
               </button>
             </div>
           </div>
@@ -385,7 +385,6 @@ const createNewConversation = async () => {
   if (!authStore.isLoggedIn) {
     currentConversationId.value = `guest_${Date.now()}`
     messages.value = []
-    input.value = ''
     return
   }
 
@@ -399,7 +398,6 @@ const createNewConversation = async () => {
       conversations.value.unshift(newConversation)
       currentConversationId.value = newConversation.id
       messages.value = []
-      input.value = ''
     }
   } catch (error) {
     console.error('创建会话失败:', error)
