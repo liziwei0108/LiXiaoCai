@@ -46,16 +46,23 @@ git push -u origin main
 
 ### 2.2 配置数据库白名单
 
-在阿里云数据库控制台，将 Render 的 IP 段添加到白名单：
+在阿里云数据库控制台，将 Render 的 IP 添加到白名单：
 
+**获取 Render 出口 IP 的方法：**
+
+1. 临时部署后端（可以先使用 `0.0.0.0/0` 让 Render 能连接）
+2. 访问 `https://你的后端域名.onrender.com/api/ip`
+3. 页面会显示 Render 的出口 IP 地址
+4. 将该 IP 添加到阿里云白名单
+
+**添加白名单步骤：**
 1. 进入阿里云 RDS 控制台
 2. 找到你的 PostgreSQL 实例
 3. 点击 **"数据安全性"** → **"白名单设置"**
-4. 添加以下 IP 段：
-   ```
-   0.0.0.0/0
-   ```
-   > ⚠️ 注意：生产环境建议只添加 Render 的具体出口 IP，而不是 0.0.0.0/0
+4. 添加 Render 的 IP（例如：`43.156.123.45`）
+5. 如果有多个 IP，用逗号分隔
+
+> ⚠️ **安全提示**：生产环境不要开放 `0.0.0.0/0`，只允许 Render 的特定 IP
 
 ### 2.3 确认表结构已创建
 
@@ -97,24 +104,20 @@ git push -u origin main
 DB_HOST=你的阿里云数据库地址
 DB_PORT=5432
 DB_NAME=你的数据库名
-DB_USER=你的用户名
-DB_PASSWORD=你的密码
+DB_USER=你的数据库用户名
+DB_PASSWORD=你的数据库密码
 
-# AI API 密钥（阿里云灵积）
-DASHSCOPE_API_KEY=你的阿里云灵积API密钥
+# AI API 密钥（阿里云魔搭）
+DASHSCOPE_API_KEY=你的阿里云API密钥
 
-# ==========================================
-# 可选配置（有默认值，建议生产环境修改）
-# ==========================================
+# JWT 密钥（生产环境请修改为随机长字符串，至少32位）
+JWT_SECRET=your_jwt_secret
 
-# JWT 密钥（生产环境请修改为随机长字符串）
-JWT_SECRET=你的随机密钥至少32位字符
-
-# 环境标识（设置为 production 会启用严格 CORS）
+# 环境标识（production 会启用严格 CORS）
 NODE_ENV=production
 
-# 前端域名（配置后只允许该域名访问 API，先留空，部署完前端后再填）
-FRONTEND_URL=
+# 前端域名（配置后只允许该域名访问 API）
+FRONTEND_URL=https://your-frontend.vercel.app
 ```
 
 ### 3.3 等待部署完成
