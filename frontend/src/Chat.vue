@@ -278,6 +278,7 @@ import hljs from 'highlight.js'
 import ConfirmModal from './components/ConfirmModal.vue'
 import AuthModal from './components/AuthModal.vue'
 import { useAuthStore } from './stores/auth.js'
+import { getApiUrl } from './config/api.js'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -349,7 +350,7 @@ const isReasoningExpanded = (messageId) => {
 // 获取会话列表
 const fetchConversations = async () => {
   try {
-    const response = await fetch('/api/conversations', {
+    const response = await fetch(getApiUrl('/api/conversations'), {
       headers: getAuthHeaders()
     })
     if (response.ok) {
@@ -366,7 +367,7 @@ const fetchHistoryById = async (conversationId) => {
   if (!conversationId) return
   
   try {
-    const response = await fetch(`/api/history?conversationId=${conversationId}`, {
+    const response = await fetch(getApiUrl(`/api/history?conversationId=${conversationId}`), {
       headers: getAuthHeaders()
     })
     if (response.ok) {
@@ -389,7 +390,7 @@ const createNewConversation = async () => {
   }
 
   try {
-    const response = await fetch('/api/conversations', {
+    const response = await fetch(getApiUrl('/api/conversations'), {
       method: 'POST',
       headers: getAuthHeaders()
     })
@@ -426,7 +427,7 @@ const confirmDelete = async () => {
   if (!deleteTargetId.value) return
   
   try {
-    const response = await fetch(`/api/conversations/${deleteTargetId.value}`, {
+    const response = await fetch(getApiUrl(`/api/conversations/${deleteTargetId.value}`), {
       method: 'DELETE',
       headers: getAuthHeaders()
     })
@@ -518,7 +519,7 @@ const sendMessage = async (text) => {
   isLoading.value = true
 
   try {
-    const response = await fetch('/api/chat', {
+    const response = await fetch(getApiUrl('/api/chat'), {
       method: 'POST',
       headers: getAuthHeaders(),
       body: JSON.stringify({

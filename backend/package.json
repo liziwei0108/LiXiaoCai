@@ -1,10 +1,13 @@
 {
+	"name": "lixiaocai-backend",
 	"type": "module",
+	"version": "1.0.0",
 	"scripts": {
 		"dev": "node server.js",
 		"debug": "node --inspect server.js",
 		"intime": "tsx ./testDemo/test_qwen.ts --function=start",
-		"stream": "tsx ./testDemo/test_qwen.ts --function=stream"
+		"stream": "tsx ./testDemo/test_qwen.ts --function=stream",
+		"start": "node server.js"
 	},
 	"dependencies": {
 		"axios": "^1.13.5",

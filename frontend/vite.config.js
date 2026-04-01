@@ -26,5 +26,12 @@ export default defineConfig({
         changeOrigin: true,
       }
     }
-  }
+  },
+  // 生产环境配置
+  build: {
+    outDir: 'dist',
+    assetsDir: 'assets',
+  },
+  // 根据环境变量设置基础路径
+  base: process.env.VERCEL ? '/' : '/',
 })

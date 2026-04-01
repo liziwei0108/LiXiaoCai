@@ -1,7 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000'
+import { getApiUrl } from '../config/api.js'
 
 export const useAuthStore = defineStore('auth', () => {
   // State
@@ -35,7 +34,7 @@ export const useAuthStore = defineStore('auth', () => {
     error.value = ''
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/auth/register`, {
+      const response = await fetch(getApiUrl('/api/auth/register'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -65,7 +64,7 @@ export const useAuthStore = defineStore('auth', () => {
     error.value = ''
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
+      const response = await fetch(getApiUrl('/api/auth/login'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -100,7 +99,7 @@ export const useAuthStore = defineStore('auth', () => {
     loading.value = true
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/auth/me`, {
+      const response = await fetch(getApiUrl('/api/auth/me'), {
         headers: {
           'Authorization': `Bearer ${token.value}`
         }
@@ -124,7 +123,7 @@ export const useAuthStore = defineStore('auth', () => {
   async function logout() {
     if (token.value) {
       try {
-        await fetch(`${API_BASE_URL}/api/auth/logout`, {
+        await fetch(getApiUrl('/api/auth/logout'), {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${token.value}`

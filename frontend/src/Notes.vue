@@ -126,10 +126,10 @@ import { useAuthStore } from './stores/auth.js'
 import NoteCard from './components/NoteCard.vue'
 import NoteDetailModal from './components/NoteDetailModal.vue'
 import ConfirmModal from './components/ConfirmModal.vue'
+import { getApiUrl } from './config/api.js'
 
 const router = useRouter()
 const authStore = useAuthStore()
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000'
 
 // 状态
 const notes = ref([])
@@ -188,7 +188,7 @@ const getAuthHeaders = () => {
 const fetchNotes = async () => {
   loading.value = true
   try {
-    const response = await fetch(`${API_BASE_URL}/api/notes`, {
+    const response = await fetch(getApiUrl('/api/notes'), {
       headers: getAuthHeaders()
     })
     
@@ -237,7 +237,7 @@ const handleFileChange = async (event) => {
   try {
     const content = await file.text()
     
-    const response = await fetch(`${API_BASE_URL}/api/notes/upload`, {
+    const response = await fetch(getApiUrl('/api/notes/upload'), {
       method: 'POST',
       headers: getAuthHeaders(),
       body: JSON.stringify({
@@ -274,7 +274,7 @@ const handleFileChange = async (event) => {
 const openNoteDetail = async (note) => {
   // 调用 API 获取完整笔记内容
   try {
-    const response = await fetch(`${API_BASE_URL}/api/notes/${note.id}`, {
+    const response = await fetch(getApiUrl(`/api/notes/${note.id}`), {
       headers: getAuthHeaders()
     })
 
@@ -309,7 +309,7 @@ const confirmDelete = async () => {
   if (!noteToDelete.value) return
   
   try {
-    const response = await fetch(`${API_BASE_URL}/api/notes/${noteToDelete.value.id}`, {
+    const response = await fetch(getApiUrl(`/api/notes/${noteToDelete.value.id}`), {
       method: 'DELETE',
       headers: getAuthHeaders()
     })
